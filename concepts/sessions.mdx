@@ -1,0 +1,183 @@
+---
+title: "Understanding Shob Sessions"
+sidebarTitle: "Sessions"
+description: "Sessions are the core unit of work in Shob. Each session tracks the full conversation, file changes, and agent actions for a single task."
+---
+
+A **session** in Shob is a persistent, stateful conversation between you and an AI agent. Every message sent, every file the agent reads or edits, every shell command it runs, and every permission decision made is recorded inside a single session. Sessions survive process restarts, can be resumed at any time, shared with others, forked from any point in history, and compacted when the context window fills up.
+
+## What Is a Session?
+
+When you start Shob — either interactively through the TUI or headlessly via `shob run` — a new session is created automatically. The session stores:
+
+- A unique **session ID** (e.g., `ses_01jzabcxyz...`) and a human-readable **slug**
+- A **title** that is auto-generated from the first message and refined by the `title` agent
+- The **working directory** the session is anchored to
+- The complete **message history**, including all agent tool calls and their results
+- A **summary** of file changes (additions, deletions, and affected files) produced at the end of the run
+- Timestamps for creation and last update
+
+<Note>
+Sessions are stored locally in Shob's data directory. They are not uploaded anywhere unless you explicitly share them.
+</Note>
+
+## Session Lifecycle
+
+<Steps>
+
+### Create
+
+A session is created the first time you send a message. You can also create one explicitly by starting the TUI without a message, or by running `shob run` with a prompt.
+
+```bash
+# Start a new interactive session
+shob
+
+# Start a new headless session with a prompt
+shob run "Refactor the authentication module to use JWT"
+```
+
+### Run
+
+The agent processes your message, calling tools (file reads, edits, shell commands, web searches) and requesting permissions as needed. The session accumulates a full transcript of all activity.
+
+```bash
+# Continue the most recent session
+shob run --continue "Now add unit tests for the new JWT module"
+
+# Continue a specific session by ID
+shob run --session ses_01jzabcxyz "What files did we change?"
+```
+
+### Review Diffs
+
+After the agent finishes, the session summary includes a diff of every file that was modified. In the TUI, you can view the timeline and inspect per-message diffs. Programmatically, the session `summary` field records additions, deletions, and file counts.
+
+### Accept or Revert
+
+If you are happy with the changes, carry on. If not, the session supports **reverting** to a previous state. Each message in the session can act as a restore point — Shob records filesystem snapshots so that undoing a message rolls the working tree back precisely.
+
+</Steps>
+
+## Session IDs
+
+Every session receives a unique, monotonically ordered ID prefixed with `ses_`. IDs are URL-safe and can be passed directly to CLI commands:
+
+```bash
+shob run --session ses_01jzabcxyz "Add error handling"
+shob session delete ses_01jzabcxyz
+```
+
+## Listing Sessions
+
+Use `shob session list` to inspect all sessions for the current project:
+
+<CodeGroup>
+
+```bash Table (default)
+shob session list
+```
+
+```bash JSON output
+shob session list --format json
+```
+
+```bash Limit to 10 most recent
+shob session list --max-count 10
+# or: -n 10
+```
+
+</CodeGroup>
+
+The table view displays the session ID, title, and last-updated time. When the output is a TTY and no limit is specified, it is paged automatically through `less` (or `more` on Windows):
+
+```
+Session ID                    Title                      Updated
+──────────────────────────────────────────────────────────────────────
+ses_01jzabcxyz123456          Refactor auth module       10:42 AM
+ses_01jzabcabc987654          Add JWT unit tests         Yesterday
+```
+
+The JSON format returns an array of objects with `id`, `title`, `updated`, `created`, `projectId`, and `directory`.
+
+## Deleting Sessions
+
+```bash
+shob session delete <sessionID>
+```
+
+Deleting a session removes it and all of its child sessions (sessions that were forked from it). The operation is irreversible.
+
+## Session Sharing
+
+<Note>
+Sharing must be enabled in your configuration. Set `share` to `"manual"` to allow on-demand sharing, or `"auto"` to share every new session automatically. Set it to `"disabled"` (the default if unconfigured) to prevent sharing entirely.
+</Note>
+
+When sharing is enabled, a session can be published to a URL that others can open in a browser:
+
+```json shob.json
+{
+  "share": "manual"
+}
+```
+
+Once sharing is configured, use the **session_share** keybind in the TUI (`none` by default — set it in your keybinds config) or the `--share` flag on `shob run`:
+
+```bash
+shob run --share "Explain the database schema"
+```
+
+A shared session exposes a read-only view of the conversation transcript. The `share.url` field on the session object holds the public URL once the session is shared.
+
+## Context Window Management and Compaction
+
+Every AI model has a fixed **context window** — the maximum amount of text it can process in a single request. As a session grows, it will eventually fill that window. Shob handles this automatically through **compaction**.
+
+When the context is approaching its limit, Shob invokes the internal `compaction` agent to summarise the conversation so far. The summary replaces the oldest messages, keeping the most recent context and carrying forward the key information needed to continue the task.
+
+You can tune compaction behaviour in `shob.json`:
+
+```json shob.json
+{
+  "compaction": {
+    "auto": true,
+    "prune": true,
+    "profile": "default"
+  }
+}
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `auto` | `true` | Trigger compaction automatically when the context window is full |
+| `prune` | `true` | Remove old tool outputs to free tokens before a full compaction |
+| `profile` | `"default"` | Compaction style: `default`, `comprehensive`, `technical`, or `minimal` |
+
+You can also trigger compaction manually in the TUI with the **session_compact** keybind (default: `<leader>c`).
+
+<Tip>
+Custom compaction profiles let you control exactly what gets preserved. Use `"comprehensive"` for long coding sessions where you need detailed state, and `"minimal"` for quick Q&A tasks.
+</Tip>
+
+## Session Forking
+
+Forking creates a new session that starts from an exact point in the history of an existing session. All messages up to (and not including) the fork point are copied into the new session. The original session is left untouched.
+
+```bash
+# Fork the current session from the last message
+shob run --continue --fork "Try a different approach"
+
+# Fork a specific session from its last message
+shob run --session ses_01jzabcxyz --fork "Alternative implementation"
+```
+
+In the TUI, use the **session_fork** keybind (default: `none` — bind it in your keybinds config) to fork from any message in the timeline.
+
+Forked sessions get a title derived from the original: `"Refactor auth module (fork #1)"`, `"Refactor auth module (fork #2)"`, and so on.
+
+<Accordion title="Child sessions and session trees">
+Sessions can be nested. When an agent spawns a subagent to work on a sub-task, that subagent runs inside a **child session** with a `parentID` pointing back to the parent. The TUI shows child sessions indented beneath their parent and provides keybinds to navigate the tree (`session_child_first`, `session_child_cycle`, `session_parent`).
+
+Child sessions are deleted recursively when their parent is deleted.
+</Accordion>

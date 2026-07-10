@@ -1,0 +1,72 @@
+---
+title: "Shob: AI Agent Workspace for Parallel Development"
+sidebarTitle: "Introduction"
+description: "Shob is an AI agent workspace that runs parallel coding and automation sessions. Supports multiple AI providers, MCP servers, custom agents, and plugins."
+---
+
+Shob is an AI agent workspace built for developers who want to run multiple AI-powered workflows from a single environment. Instead of juggling conversations, browser tabs, and disconnected terminals, Shob lets you manage parallel coding sessions, automation tasks, and AI agents — all from one place with full visibility and control over every action they take.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install Shob and run your first AI coding task in under 5 minutes.
+  </Card>
+  <Card title="Sessions" icon="window" href="/concepts/sessions">
+    Learn how Shob organizes work into isolated, resumable sessions.
+  </Card>
+  <Card title="Agents" icon="robot" href="/concepts/agents">
+    Understand how agents are structured, delegated, and coordinated.
+  </Card>
+  <Card title="Permissions" icon="shield-check" href="/concepts/permissions">
+    Review and control every action agents take before it happens.
+  </Card>
+</CardGroup>
+
+## Why Shob?
+
+### Parallel AI Sessions
+
+Run multiple AI agents simultaneously within the same project. Work on bug fixes, test coverage, documentation, refactoring, and feature development — all at the same time. Each session is isolated so agents never step on each other's work.
+
+### Smart Permission System
+
+Every action remains under your control. Before any agent writes a file, runs a command, or makes a code change, Shob surfaces a permission prompt for your review. You can pre-approve entire categories of actions or require explicit confirmation for each one.
+
+<Tip>
+  Use `--dangerously-skip-permissions` during automated pipelines to auto-approve non-denied actions — but review your permission config carefully before enabling this flag in production workflows.
+</Tip>
+
+### Deep Git Integration
+
+Shob understands your repository, active branch, and local changes. Agents work safely within your existing development workflow, so they won't rebase over uncommitted work or push to the wrong branch by accident.
+
+### Subagent Delegation
+
+Break large tasks into smaller, focused pieces. A root agent can delegate sub-tasks to specialized subagents and consolidate their results into a single coherent output — without you having to coordinate the handoffs manually.
+
+### Live Task Tracking
+
+Monitor progress in real time. Watch agents create plans, execute tasks, and complete objectives step by step directly in your terminal.
+
+### Multi-Provider Support
+
+Connect the AI model that fits your workflow. Shob supports Anthropic, OpenAI, Google, OpenRouter, Vercel AI Gateway, Amazon Bedrock, GitHub Copilot, Cloudflare AI Gateway, and more. You can also configure custom providers through the plugin system.
+
+<Note>
+  You can manage all your provider credentials with `shob providers login` and inspect what is currently configured with `shob providers list`.
+</Note>
+
+### Terminal & Diff Preview
+
+See exactly what agents are doing. Review terminal output and inspect code changes as diffs before accepting them into your working tree.
+
+## Project Status
+
+<Warning>
+  Shob is currently in **Beta**. The platform is under active development and new capabilities are shipped regularly based on community feedback. APIs, CLI flags, and configuration formats may change between minor versions while the project stabilises.
+</Warning>
+
+We are actively improving the platform and building new capabilities. Every suggestion, issue report, and contribution helps shape the future of the project.
+
+**GitHub Repository:** [https://github.com/shobcoder/shob](https://github.com/shobcoder/shob)
+
+If you find the project useful, consider giving it a ⭐ and sharing your feedback with the community.

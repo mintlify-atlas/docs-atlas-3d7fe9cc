@@ -1,0 +1,248 @@
+---
+title: "Configure AI Providers in shob.json"
+sidebarTitle: "Providers"
+description: "Configure Anthropic, OpenAI, and custom OpenAI-compatible providers in shob.json. Set API keys, base URLs, and default models."
+---
+
+Shob works with multiple AI providers out of the box. The `provider` block in `shob.json` lets you supply API keys, override base URLs, set request timeouts, control which models are visible, and even define entirely custom OpenAI-compatible endpoints — all without touching environment variables.
+
+## The `provider` config block
+
+Each key inside `provider` is a **provider ID** (e.g. `anthropic`, `openai`). The value is a provider configuration object:
+
+```json
+{
+  "provider": {
+    "<provider-id>": {
+      "options": {
+        "apiKey": "...",
+        "baseURL": "..."
+      }
+    }
+  }
+}
+```
+
+### Provider object fields
+
+<ParamField path="options.apiKey" type="string">
+  API key sent with every request to this provider. Overrides the provider's default environment-variable lookup.
+</ParamField>
+
+<ParamField path="options.baseURL" type="string">
+  Override the HTTP base URL for all requests. Required when connecting to a custom or self-hosted OpenAI-compatible endpoint.
+</ParamField>
+
+<ParamField path="options.timeout" type="number | false">
+  Request timeout in milliseconds (default: `300000` — 5 minutes). Set to `false` to disable the timeout entirely.
+</ParamField>
+
+<ParamField path="options.chunkTimeout" type="number">
+  Maximum milliseconds to wait between streamed SSE chunks before aborting. Useful for detecting stalled streams.
+</ParamField>
+
+<ParamField path="options.headerTimeout" type="number | false">
+  Milliseconds to wait for the initial response headers. Set to `false` to disable.
+</ParamField>
+
+<ParamField path="options.setCacheKey" type="boolean">
+  Enable `promptCacheKey` for this provider (default: `false`). Only relevant for providers that support prompt caching.
+</ParamField>
+
+<ParamField path="whitelist" type="string[]">
+  If set, only models in this list will appear in the model selector for this provider.
+</ParamField>
+
+<ParamField path="blacklist" type="string[]">
+  Models to hide from the model selector for this provider.
+</ParamField>
+
+<ParamField path="models" type="object">
+  Per-model metadata overrides (cost, capabilities, etc.). Advanced use only.
+</ParamField>
+
+---
+
+## Setting the default model
+
+The top-level `model` field sets the default model used for every new session. Use the `provider/model-name` format:
+
+```json
+{
+  "model": "anthropic/claude-opus-4-5"
+}
+```
+
+You can also set a `small_model` for lightweight background tasks like generating session titles:
+
+```json
+{
+  "model": "anthropic/claude-opus-4-5",
+  "small_model": "anthropic/claude-haiku-3-5"
+}
+```
+
+<Tip>
+  The model picker in the TUI lets you change models per-session at any time. The `model` field in `shob.json` is only the startup default.
+</Tip>
+
+---
+
+## Provider examples
+
+### Anthropic
+
+```json
+{
+  "model": "anthropic/claude-opus-4-5",
+  "provider": {
+    "anthropic": {
+      "options": {
+        "apiKey": "sk-ant-api03-..."
+      }
+    }
+  }
+}
+```
+
+Shob will also read `ANTHROPIC_API_KEY` from the environment if `apiKey` is not set in the config.
+
+### OpenAI
+
+```json
+{
+  "model": "openai/gpt-4o",
+  "provider": {
+    "openai": {
+      "options": {
+        "apiKey": "sk-..."
+      }
+    }
+  }
+}
+```
+
+The `OPENAI_API_KEY` environment variable is the fallback if `apiKey` is omitted.
+
+### Custom / OpenAI-compatible endpoint
+
+Any provider that exposes an OpenAI-compatible API (Ollama, LM Studio, vLLM, Together AI, etc.) can be registered with a custom `baseURL`:
+
+```json
+{
+  "model": "custom-local/llama-3.1-8b",
+  "provider": {
+    "custom-local": {
+      "options": {
+        "baseURL": "http://localhost:11434/v1",
+        "apiKey": "ollama"
+      }
+    }
+  }
+}
+```
+
+<Note>
+  When using a custom provider ID, set `model` to `your-provider-id/model-name` so Shob knows which provider to route requests to.
+</Note>
+
+### Restricting available models
+
+Use `whitelist` to limit the models shown in the picker, or `blacklist` to hide specific ones:
+
+```json
+{
+  "provider": {
+    "anthropic": {
+      "options": {
+        "apiKey": "sk-ant-..."
+      },
+      "whitelist": [
+        "claude-opus-4-5",
+        "claude-haiku-3-5"
+      ]
+    },
+    "openai": {
+      "options": {
+        "apiKey": "sk-..."
+      },
+      "blacklist": [
+        "gpt-3.5-turbo"
+      ]
+    }
+  }
+}
+```
+
+### Disabling providers entirely
+
+Use `disabled_providers` to stop certain providers from loading at all, or `enabled_providers` to use an allowlist:
+
+```json
+{
+  // Disable a specific provider
+  "disabled_providers": ["bedrock"],
+
+  // Or allowlist — only these providers will be loaded
+  "enabled_providers": ["anthropic", "openai"]
+}
+```
+
+---
+
+## API keys via environment variables
+
+You can always supply API keys through environment variables instead of (or in addition to) the config file. The standard variables Shob recognises are the same ones each provider's SDK uses:
+
+| Provider | Environment variable |
+|---|---|
+| Anthropic | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Google (Gemini) | `GOOGLE_GENERATIVE_AI_API_KEY` |
+| Amazon Bedrock | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` |
+
+<Warning>
+  Avoid committing API keys directly in `shob.json` files that are checked into source control. For project configs, prefer environment variables or keep secrets only in your global `~/.config/shob/shob.json`.
+</Warning>
+
+---
+
+## Full provider config reference
+
+```json
+{
+  "$schema": "https://shob.ai/config.json",
+
+  "model": "anthropic/claude-opus-4-5",
+  "small_model": "anthropic/claude-haiku-3-5",
+
+  "provider": {
+    // Anthropic with a custom prompt-cache key
+    "anthropic": {
+      "options": {
+        "apiKey": "sk-ant-...",
+        "setCacheKey": true,
+        "timeout": 600000
+      },
+      "whitelist": ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-3-5"]
+    },
+
+    // OpenAI with a short header timeout
+    "openai": {
+      "options": {
+        "apiKey": "sk-...",
+        "headerTimeout": 10000
+      }
+    },
+
+    // Local Ollama instance (OpenAI-compatible)
+    "ollama": {
+      "options": {
+        "baseURL": "http://localhost:11434/v1",
+        "apiKey": "ollama",
+        "timeout": false
+      }
+    }
+  }
+}
+```

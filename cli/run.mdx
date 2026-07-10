@@ -1,0 +1,151 @@
+---
+title: "shob run — Execute AI Agent Tasks from the CLI"
+sidebarTitle: "run"
+description: "shob run sends a message to an AI agent and runs it interactively. Key flags: --model, --session, --continue, --agent, --format, --attach."
+---
+
+`shob run` is the primary way to interact with the Shob AI agent from the command line. It accepts a free-text message, dispatches it to the configured AI model, and streams the agent's output back to your terminal. You can continue existing sessions, attach to a remote Shob server, attach files to your message, and control output formatting — all from a single command.
+
+## Usage
+
+```bash
+shob run [message..]
+```
+
+The `message` argument is a positional, variadic string. You can pass multiple words directly as arguments; Shob joins them into a single message.
+
+```bash
+shob run "explain the purpose of every function in src/auth.ts"
+shob run explain the purpose of every function in src/auth.ts
+```
+
+## Flags
+
+<ParamField body="--command" type="string">
+  A named command to run; the `message` positional is passed as arguments to that command.
+</ParamField>
+
+<ParamField body="--continue" type="boolean">
+  Alias: `-c`
+
+  Continue the most recent session rather than creating a new one. Useful for iterating on a task without repeating context.
+</ParamField>
+
+<ParamField body="--session" type="string">
+  Alias: `-s`
+
+  Continue a specific session identified by its session ID. Use `shob session list` to find session IDs.
+</ParamField>
+
+<ParamField body="--fork" type="boolean">
+  Fork the session before continuing. Requires `--continue` or `--session`. Creates a new branch of the conversation rather than appending to it.
+</ParamField>
+
+<ParamField body="--share" type="boolean">
+  Share the session by generating a shareable link after it completes.
+</ParamField>
+
+<ParamField body="--model" type="string">
+  Alias: `-m`
+
+  The model to use, in `provider/model` format — for example `anthropic/claude-opus-4-5` or `openai/gpt-4o`. Overrides any model set in the project configuration.
+</ParamField>
+
+<ParamField body="--agent" type="string">
+  The name of a custom agent to use for this run. Custom agents are created with `shob agent create`.
+</ParamField>
+
+<ParamField body="--format" type="string" default="default">
+  Output format. Accepted values:
+
+  - `default` — human-readable, formatted output streamed to the terminal
+  - `json` — raw JSON events, suitable for piping to other tools
+</ParamField>
+
+<ParamField body="--file" type="string[]">
+  Alias: `-f`
+
+  One or more file paths to attach to the message. Can be specified multiple times: `--file a.ts --file b.ts`.
+</ParamField>
+
+<ParamField body="--title" type="string">
+  An explicit title for the session. If omitted, Shob uses a truncated version of the message as the title.
+</ParamField>
+
+<ParamField body="--attach" type="string">
+  Attach to a running Shob server instead of starting a local agent. Pass the base URL of the server, for example `http://localhost:4096`. When this flag is set, the agent runs on the remote server.
+</ParamField>
+
+<ParamField body="--password" type="string">
+  Alias: `-p`
+
+  Basic auth password for the remote Shob server. Falls back to the `SHOB_SERVER_PASSWORD` environment variable when not provided.
+</ParamField>
+
+<ParamField body="--dir" type="string">
+  Working directory for the agent. When used with `--attach`, this is interpreted as a path on the remote server.
+</ParamField>
+
+<ParamField body="--port" type="number">
+  Port for the local embedded server. Defaults to a random available port when not specified.
+</ParamField>
+
+<ParamField body="--variant" type="string">
+  Model variant for provider-specific reasoning effort settings, for example `high`, `max`, or `minimal`. The available values depend on the chosen provider and model.
+</ParamField>
+
+<ParamField body="--thinking" type="boolean" default="false">
+  Show thinking blocks in the output when the model supports them (e.g. extended thinking on Claude models).
+</ParamField>
+
+<ParamField body="--dangerously-skip-permissions" type="boolean" default="false">
+  Auto-approve all permission prompts that are not explicitly denied. Use with extreme caution — this allows the agent to take destructive actions without confirmation.
+</ParamField>
+
+## Examples
+
+**Basic task**
+
+```bash
+shob run "refactor the authentication module"
+```
+
+**Continue the last session**
+
+```bash
+shob run -c "also add tests for the new functions"
+```
+
+**Use a specific model**
+
+```bash
+shob run -m anthropic/claude-opus-4-5 "explain what this codebase does"
+```
+
+**Attach to a remote Shob server**
+
+```bash
+shob run --attach http://localhost:4096 "fix the failing tests"
+```
+
+**JSON output for scripting**
+
+```bash
+shob run --format json "list all exported functions" | jq '.content'
+```
+
+**Attach files to the message**
+
+```bash
+shob run -f src/auth.ts -f src/auth.test.ts "improve test coverage"
+```
+
+**Fork the last session and try a different approach**
+
+```bash
+shob run -c --fork "try a different implementation strategy"
+```
+
+<Warning>
+  Using `--dangerously-skip-permissions` disables all interactive permission checks. Only use this in controlled environments (e.g. CI) where you fully trust the agent and have reviewed the task scope.
+</Warning>

@@ -1,0 +1,289 @@
+---
+title: "Run Shob as a Headless HTTP Server"
+sidebarTitle: "Headless Server"
+description: "Start Shob in server mode to expose a REST API for programmatic session control. Useful for CI/CD pipelines, automation scripts, and integrations."
+---
+
+Shob can run as a long-lived HTTP server that exposes a REST API for creating and managing AI sessions programmatically. In this mode there is no interactive TUI — instead, clients connect over HTTP to start sessions, send messages, stream responses, and read results. This is the foundation for CI/CD automation, multi-tenant deployments, IDE integrations, and any scenario where you need to drive Shob from code.
+
+## Starting the server
+
+Use the `shob serve` command to start Shob in headless mode:
+
+```bash
+shob serve
+```
+
+By default the server binds to `127.0.0.1` on a random available port. To expose the server on a fixed address and port, pass the `--hostname` and `--port` flags:
+
+```bash
+shob serve --hostname=0.0.0.0 --port=4096
+```
+
+When the server is ready it prints:
+
+```
+shob server listening on http://0.0.0.0:4096
+```
+
+### Available flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--hostname` | `127.0.0.1` | Interface to bind to. Use `0.0.0.0` to listen on all interfaces. |
+| `--port` | `0` (random) | TCP port to listen on. |
+| `--mdns` | `false` | Advertise the server via mDNS service discovery. Automatically sets hostname to `0.0.0.0`. |
+| `--mdns-domain` | `shob.local` | Custom domain name for mDNS. |
+| `--cors` | `[]` | Additional origins to allow in CORS responses. |
+
+These flags can also be persisted in the `server` section of your `shob.json` so you don't have to pass them every time:
+
+```json
+{
+  "server": {
+    "hostname": "0.0.0.0",
+    "port": 4096
+  }
+}
+```
+
+## Server authentication
+
+By default the server is **unsecured** — any client that can reach the port can use it. Protect it by setting the `SHOB_SERVER_PASSWORD` environment variable before starting the server:
+
+```bash
+SHOB_SERVER_PASSWORD=my-secret-password shob serve --hostname=0.0.0.0 --port=4096
+```
+
+The server uses HTTP Basic Auth. The username defaults to `shob` and can be overridden with `SHOB_SERVER_USERNAME`.
+
+<Warning>
+If `SHOB_SERVER_PASSWORD` is not set, Shob prints `Warning: SHOB_SERVER_PASSWORD is not set; server is unsecured.` on startup. Never expose an unsecured server on a public network.
+</Warning>
+
+## Connecting to a remote server
+
+### With the CLI
+
+Use `shob run --attach` to send a one-shot prompt to a running server:
+
+```bash
+shob run --attach http://localhost:4096 "refactor the login function to use async/await"
+```
+
+If the server requires a password, pass it via `--password` or set `SHOB_SERVER_PASSWORD` in the environment:
+
+```bash
+shob run \
+  --attach http://my-server:4096 \
+  --password my-secret-password \
+  --dir /workspace/my-project \
+  "add JSDoc comments to all exported functions"
+```
+
+| Flag | Description |
+|---|---|
+| `--attach <url>` | URL of the running Shob server |
+| `--password` / `-p` | Basic auth password (falls back to `SHOB_SERVER_PASSWORD`) |
+| `--dir` | Working directory on the remote server |
+| `--model` / `-m` | Model to use, e.g. `anthropic/claude-sonnet-4-5` |
+| `--session` / `-s` | Continue an existing session by ID |
+
+### With the JavaScript SDK
+
+The `@shob-ai/sdk` package provides a typed client that speaks directly to the REST API. Install it:
+
+```bash
+npm install @shob-ai/sdk
+```
+
+Then create a client pointing at your server:
+
+```typescript
+import { createOpencodeClient } from "@shob-ai/sdk"
+
+const client = createOpencodeClient({
+  baseUrl: "http://localhost:4096",
+})
+```
+
+If your server requires authentication, pass the credentials in the `Authorization` header:
+
+```typescript
+const password = process.env.SHOB_SERVER_PASSWORD!
+const credentials = Buffer.from(`shob:${password}`).toString("base64")
+
+const client = createOpencodeClient({
+  baseUrl: "http://localhost:4096",
+  headers: {
+    Authorization: `Basic ${credentials}`,
+  },
+})
+```
+
+## Setup
+
+<Steps>
+  <Step title="Start the server">
+    Start a password-protected server listening on all interfaces:
+
+    ```bash
+    export SHOB_SERVER_PASSWORD=my-secret-password
+    shob serve --hostname=0.0.0.0 --port=4096
+    ```
+  </Step>
+
+  <Step title="Install the SDK in your project">
+    ```bash
+    npm install @shob-ai/sdk
+    ```
+  </Step>
+
+  <Step title="Connect and run a task">
+    Create a client, open a session, and send a prompt:
+
+    ```typescript
+    import { createOpencodeClient } from "@shob-ai/sdk"
+
+    const password = process.env.SHOB_SERVER_PASSWORD!
+    const credentials = Buffer.from(`shob:${password}`).toString("base64")
+
+    const client = createOpencodeClient({
+      baseUrl: "http://localhost:4096",
+      headers: { Authorization: `Basic ${credentials}` },
+    })
+
+    // Create a new session
+    const { data: session } = await client.session.create()
+    console.log("Session:", session.id)
+
+    // Send a prompt and wait for the response
+    const { data: message } = await client.session.prompt({
+      path: { id: session.id },
+      body: {
+        parts: [{ type: "text", text: "List the files in the current directory" }],
+        model: { providerID: "anthropic", modelID: "claude-sonnet-4-5" },
+      },
+    })
+
+    // Print the text parts of the response
+    for (const part of message.parts) {
+      if (part.type === "text") {
+        console.log(part.text)
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Complete Node.js automation script
+
+The following script demonstrates a full CI/CD automation pattern: it launches its own Shob server, runs a task against a remote codebase directory, prints the result, and shuts down cleanly.
+
+```typescript
+import { createOpencodeClient, createOpencodeServer } from "@shob-ai/sdk"
+
+async function runCiTask(directory: string, prompt: string) {
+  // Start a local server (or point at a remote one)
+  const server = await createOpencodeServer({
+    hostname: "127.0.0.1",
+    port: 4096,
+    timeout: 10_000,
+  })
+
+  console.log(`Server started at ${server.url}`)
+
+  try {
+    const client = createOpencodeClient({
+      baseUrl: server.url,
+      // Pass the working directory so the server operates in the right folder
+      directory,
+    })
+
+    // Create a session
+    const { data: session } = await client.session.create()
+    console.log(`Session created: ${session.id}`)
+
+    // Send the task prompt
+    const { data: response } = await client.session.prompt({
+      path: { id: session.id },
+      body: {
+        parts: [{ type: "text", text: prompt }],
+        model: { providerID: "anthropic", modelID: "claude-sonnet-4-5" },
+      },
+    })
+
+    // Collect text output
+    const output = response.parts
+      .filter((p) => p.type === "text")
+      .map((p) => p.text)
+      .join("\n")
+
+    console.log("Agent output:\n", output)
+
+    // Optionally clean up the session
+    await client.session.delete({ path: { id: session.id } })
+
+    return output
+  } finally {
+    server.close()
+    console.log("Server stopped")
+  }
+}
+
+// Run as a script
+runCiTask(process.cwd(), "Review the recent changes and write a summary in CHANGELOG.md")
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })
+```
+
+<Tip>
+`createOpencodeServer` from the SDK launches a `shob serve` subprocess and returns its URL automatically. Use it in tests and scripts where you don't want to manage the server process yourself. The `close()` method sends SIGTERM to the subprocess and cleans up.
+</Tip>
+
+## Use case: CI/CD pipeline
+
+Running Shob in server mode is well-suited for CI/CD pipelines where you want to automate code review, generate changelogs, or apply patches across repositories:
+
+```yaml
+# .github/workflows/ai-review.yml
+name: AI Code Review
+
+on:
+  pull_request:
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start Shob server and run review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          node scripts/ai-review.mjs
+```
+
+## Security considerations
+
+<CardGroup cols={2}>
+  <Card title="Always set a password" icon="lock">
+    Set `SHOB_SERVER_PASSWORD` before binding to any non-loopback address. Without it, anyone who can reach the port has full control over the server.
+  </Card>
+  <Card title="Restrict network access" icon="shield">
+    Use firewall rules or `--hostname=127.0.0.1` (the default) to limit access to trusted clients only. Avoid exposing the port directly to the internet.
+  </Card>
+  <Card title="Use environment variables for secrets" icon="key">
+    Never hard-code passwords or API keys in scripts. Read them from environment variables or a secrets manager at runtime.
+  </Card>
+  <Card title="mDNS for LAN discovery" icon="wifi">
+    On a trusted local network, `--mdns` lets clients discover the server by hostname (`shob.local`) without needing a fixed IP. Still combine with a password.
+  </Card>
+</CardGroup>

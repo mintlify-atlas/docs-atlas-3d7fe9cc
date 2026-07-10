@@ -1,0 +1,140 @@
+---
+title: "Run Parallel AI Sessions with Shob"
+sidebarTitle: "Parallel Sessions"
+description: "Shob lets you run multiple independent AI agent sessions simultaneously on the same project — work on features, tests, and bug fixes at the same time."
+---
+
+Shob is built from the ground up to run multiple AI agent sessions at once. Instead of waiting for one task to finish before starting another, you can have agents working on a bug fix, writing tests, and drafting documentation all in parallel — each in its own isolated context, each with full visibility into what it's doing.
+
+## What Are Parallel Sessions?
+
+A **session** is a single, self-contained conversation between you and a Shob AI agent. Each session has its own message history, context window, tool call log, and set of changes. Sessions are tied to a project directory and persist across restarts, so you can pick up where you left off at any time.
+
+Running sessions in parallel means launching two or more sessions against the same project simultaneously. Each session operates independently — they don't share context with each other, and each agent makes decisions based only on what it sees in its own conversation.
+
+## Starting Multiple Sessions
+
+### From the CLI
+
+Open multiple terminal windows or panes and run `shob` in each one. Each invocation starts a new session in the current directory:
+
+```bash
+# Terminal 1: work on a new feature
+shob "Implement the user authentication flow"
+
+# Terminal 2: fix a bug independently
+shob "Fix the race condition in the queue processor"
+
+# Terminal 3: continue an existing session
+shob --continue
+```
+
+To resume a specific past session by ID, use the `--session` flag:
+
+```bash
+shob --session <session-id>
+```
+
+To list all sessions for the current project:
+
+```bash
+shob session list
+```
+
+### From the Desktop App
+
+The [desktop app](/features/desktop-app) provides a tab-based interface for managing multiple sessions visually. Each tab represents an independent session. You can open a new tab, switch between active sessions, and review per-session diffs without leaving the app.
+
+<Note>
+All sessions launched against the same project directory share the same filesystem. If two sessions edit the same file simultaneously, their changes will conflict in git. Use separate branches for agents working on overlapping areas of the codebase.
+</Note>
+
+## Session Isolation
+
+Although sessions share the underlying filesystem, each one is fully isolated in the following ways:
+
+<CardGroup cols={2}>
+  <Card title="Independent Context" icon="brain">
+    Each session maintains its own conversation history. Agents in different sessions have no awareness of what other agents are doing or have done.
+  </Card>
+  <Card title="Separate Tool Logs" icon="list-check">
+    Tool calls, shell commands, file reads, and permission approvals are tracked per-session. The diff viewer and activity timeline are scoped to each session individually.
+  </Card>
+  <Card title="Per-Session Revert" icon="rotate-left">
+    You can revert changes from one session without affecting another. Revert state is stored per-session and can be applied or cleared independently.
+  </Card>
+  <Card title="Independent Model Selection" icon="microchip">
+    Each session can use a different model or provider. Run a fast model for quick fixes and a larger model for complex feature work simultaneously.
+  </Card>
+</CardGroup>
+
+## Use Cases
+
+Parallel sessions shine when you have genuinely independent tasks that don't touch the same files:
+
+<Steps>
+  <Step title="Feature development alongside test writing">
+    Start one session to implement a new API endpoint, and another to write integration tests for it. The test-writing session can work from the spec while the implementation session builds it out.
+  </Step>
+  <Step title="Bug fix while refactoring">
+    Assign a focused bug fix to one session on a hotfix branch, and run a longer refactor task in another session on a separate feature branch.
+  </Step>
+  <Step title="Multi-area documentation">
+    Run one session to document your API, another to update your README, and a third to generate a changelog — all finishing independently without blocking each other.
+  </Step>
+  <Step title="Exploratory work with forked sessions">
+    Fork an existing session (using `--fork` with `--session`) to try two different implementation approaches in parallel, then pick the one that works better.
+  </Step>
+</Steps>
+
+## Managing Sessions
+
+### Listing Sessions
+
+```bash
+# Show all sessions in a table
+shob session list
+
+# Limit to the 10 most recent
+shob session list --max-count 10
+
+# Output as JSON for scripting
+shob session list --format json
+```
+
+The table output shows session IDs, titles, and the last updated timestamp.
+
+### Deleting Sessions
+
+```bash
+shob session delete <session-id>
+```
+
+This removes the session and its message history from the local database. It does not undo any file changes the session made — use the revert feature for that.
+
+### Continuing a Session
+
+```bash
+# Continue the most recently updated session
+shob --continue
+
+# Continue a specific session
+shob --session <session-id>
+
+# Fork a session before continuing (creates an independent copy)
+shob --session <session-id> --fork
+```
+
+## Context and Performance Considerations
+
+Each session consumes tokens from the model's context window independently. Running many long sessions in parallel can increase API costs proportionally.
+
+<Tip>
+For long-running or high-token tasks, use the `memory` skill to persist project context to disk. This reduces the cost of resuming sessions after compaction and makes parallel work more efficient across restarts.
+</Tip>
+
+When a session's context approaches its limit, Shob automatically compacts the conversation history by summarizing older messages. This happens per-session and does not affect other running sessions.
+
+<Warning>
+Avoid running two sessions that both write to the same files on the same branch. Without coordination, the second session to commit will create merge conflicts. Use separate branches and merge results manually, or assign non-overlapping areas of the codebase to each agent.
+</Warning>

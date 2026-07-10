@@ -1,0 +1,82 @@
+---
+title: "@shob-ai/sdk: JavaScript SDK for Shob"
+sidebarTitle: "Overview"
+description: "The @shob-ai/sdk package lets you programmatically control Shob sessions, start servers, and interact with the REST API from Node.js or Bun."
+---
+
+The `@shob-ai/sdk` package is the official JavaScript/TypeScript SDK for Shob. It lets you spawn and connect to a Shob server process, create and manage AI agent sessions, send prompts, stream real-time events, and interact with the full REST API — all from Node.js or Bun without touching the CLI directly.
+
+## Installation
+
+```bash
+npm install @shob-ai/sdk
+```
+
+The package ships as an ES module (`"type": "module"`) and requires Node.js 22+ or Bun.
+
+## Package exports
+
+The package exposes several sub-path exports so you can import only what you need:
+
+| Export path | What it provides |
+|---|---|
+| `.` (default) | `createOpencode`, `createOpencodeClient`, `createOpencodeServer` — the full SDK |
+| `./client` | `createOpencodeClient` and `OpencodeClient` only — no server spawning |
+| `./server` | `createOpencodeServer`, `createOpencodeTui` — child process management only |
+| `./v2` | v2 API types and client |
+
+## Quick start
+
+The simplest way to get started is `createOpencode`, which spawns a Shob server and returns a ready-to-use client in one call:
+
+```typescript
+import { createOpencode } from "@shob-ai/sdk"
+
+// Start the server and get a typed client
+const { client, server } = await createOpencode({
+  hostname: "127.0.0.1",
+  port: 4096,
+})
+
+// Create a new session
+const session = await client.session.create()
+const sessionID = session.data!.id
+
+// Send a prompt and wait for the response
+await client.session.prompt({
+  path: { id: sessionID },
+  body: {
+    content: [{ type: "text", text: "Explain the structure of this project." }],
+    providerID: "anthropic",
+    modelID: "claude-sonnet-4-5",
+  },
+})
+
+// Fetch the messages to read the response
+const messages = await client.session.messages({
+  path: { id: sessionID },
+})
+console.log(messages.data)
+
+// Clean up
+server.close()
+```
+
+## What the SDK does
+
+- **Spawn a server** — `createOpencodeServer` launches `shob serve` as a managed child process and waits until it is ready to accept connections.
+- **Connect a client** — `createOpencodeClient` creates a fully typed HTTP client that maps every REST endpoint to a TypeScript method.
+- **Manage sessions** — create, list, fork, abort, revert, share, and delete agent sessions.
+- **Stream real-time events** — subscribe to SSE streams for live message parts, tool execution progress, and permission requests.
+- **Multi-project support** — pass the `directory` option to the client to target a specific project on a shared server using the `x-shob-directory` header.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Client Reference" icon="plug" href="/sdk/client">
+    Full API reference for `createOpencodeClient` and every method on `OpencodeClient`.
+  </Card>
+  <Card title="Server Reference" icon="server" href="/sdk/server">
+    How to spawn and manage a Shob server process with `createOpencodeServer`.
+  </Card>
+</CardGroup>

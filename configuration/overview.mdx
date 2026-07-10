@@ -1,0 +1,189 @@
+---
+title: "Configuring Shob with shob.json"
+sidebarTitle: "Overview"
+description: "Shob is configured via shob.json or shob.jsonc files at global and project scopes. Learn the config schema, precedence rules, and environment variable overrides."
+---
+
+Shob reads its configuration from `shob.json` (or `shob.jsonc` for commented JSON) files at multiple locations. Settings are merged together, so you can keep your personal defaults globally while letting individual projects override what they need. The config schema covers everything from the default AI model and provider keys to MCP servers, custom agents, and fine-grained permission rules.
+
+## Config file locations
+
+Shob looks for configuration files in three places, from lowest to highest specificity:
+
+<Steps>
+  <Step title="Global config">
+    Stored under your XDG config directory — typically `~/.config/shob/shob.json` on Linux/macOS. This is the right place for personal defaults such as your preferred model or provider API keys.
+  </Step>
+  <Step title="Project config">
+    Placed in your project's working directory as `./shob.json`, `./shob.jsonc`, `./.shob/shob.json`, or `./.shob/shob.jsonc`. Shob searches up the directory tree from the current working directory to the repository root, loading any config files it finds.
+  </Step>
+  <Step title="Managed / enterprise config">
+    Deployed by an administrator to a system-wide location (`/etc/shob/` on Linux, `/Library/Application Support/shob/` on macOS, `%ProgramData%\shob\` on Windows). On macOS, settings pushed via MDM `.mobileconfig` profiles are also honoured. Managed settings always take the highest precedence and cannot be overridden by users.
+  </Step>
+</Steps>
+
+## Precedence rules
+
+When the same key appears in more than one file, the rule is:
+
+```
+managed (MDM / enterprise) > project config > global config
+```
+
+Array fields (such as `instructions`) are **concatenated** rather than replaced, so every layer can contribute entries. All other fields follow a deep-merge strategy where the higher-priority file wins.
+
+<Note>
+  Set `SHOB_DISABLE_PROJECT_CONFIG=1` to prevent Shob from loading any project-level config files — useful in CI environments where you want only the global or managed config to apply.
+</Note>
+
+## Config file format
+
+Shob uses [JSONC](https://github.com/microsoft/node-jsonc-parser) (JSON with comments), so you can add `//` and `/* */` comments inside any config file. Both `.json` and `.jsonc` extensions are supported; the parser handles comments in either.
+
+Add the `$schema` field to get editor auto-complete and validation:
+
+```json
+{
+  "$schema": "https://shob.ai/config.json"
+}
+```
+
+## Top-level config fields
+
+The table below lists every first-class field in the `shob.json` schema. Follow the links in the **Details** column for deeper coverage of the most important blocks.
+
+| Field | Type | Description |
+|---|---|---|
+| `model` | `string` | Default model in `provider/model-name` format, e.g. `anthropic/claude-opus-4-5` |
+| `small_model` | `string` | Lightweight model used for background tasks like title generation |
+| `provider` | `object` | Per-provider API keys, base URLs, and model overrides — see [Providers](/configuration/providers) |
+| `mcp` | `object` | MCP server definitions — see [MCP Servers](/configuration/mcp) |
+| `agent` | `object` | Custom agent definitions — see [Agents Config](/configuration/agents) |
+| `default_agent` | `string` | Name of the primary agent to use when none is specified (defaults to `build`) |
+| `permission` | `object` | Global permission rules applied to all agents |
+| `logLevel` | `string` | Logging verbosity: `debug`, `info`, `warn`, or `error` |
+| `username` | `string` | Custom display name shown in conversations |
+| `instructions` | `string[]` | Additional instruction files or glob patterns to inject into every session |
+| `plugin` | `array` | List of plugin package specifiers or file paths |
+| `share` | `string` | Session sharing mode: `manual`, `auto`, or `disabled` |
+| `autoupdate` | `boolean \| "notify"` | Auto-update behaviour: `true`, `false`, or `"notify"` |
+| `snapshot` | `boolean` | Enable filesystem snapshot tracking for undo/redo (default: `true`) |
+| `compaction` | `object` | Context compaction settings (auto, prune, profiles) |
+| `memory` | `object` | Long-term memory settings (enabled, max_items, max_context_chars) |
+| `server` | `object` | Options for `shob serve` / `shob web` (port, hostname, mDNS, CORS) |
+| `keybindings` | `object` | TUI keybinding overrides |
+| `formatter` | `object \| false` | Code formatter command configurations by language |
+| `lsp` | `object \| false` | Language Server Protocol configurations |
+| `disabled_providers` | `string[]` | Providers to exclude from automatic loading |
+| `enabled_providers` | `string[]` | When set, only these providers are enabled |
+| `experimental` | `object` | Experimental feature flags (OpenTelemetry, batch tool, etc.) |
+
+## Complete example
+
+```json
+{
+  "$schema": "https://shob.ai/config.json",
+
+  // Default model for all sessions
+  "model": "anthropic/claude-opus-4-5",
+  "small_model": "anthropic/claude-haiku-3-5",
+
+  // Provider API key configuration
+  "provider": {
+    "anthropic": {
+      "options": {
+        "apiKey": "sk-ant-..."
+      }
+    },
+    "openai": {
+      "options": {
+        "apiKey": "sk-..."
+      }
+    }
+  },
+
+  // MCP server definitions
+  "mcp": {
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"]
+    },
+    "remote-tools": {
+      "type": "remote",
+      "url": "https://mcp.example.com/sse"
+    }
+  },
+
+  // Global permission defaults
+  "permission": {
+    "bash": "ask",
+    "edit": "ask"
+  },
+
+  // Custom agents
+  "agent": {
+    "reviewer": {
+      "description": "Code review specialist",
+      "mode": "subagent",
+      "model": "anthropic/claude-opus-4-5",
+      "permission": {
+        "bash": "deny",
+        "edit": "deny"
+      }
+    }
+  },
+
+  // Logging
+  "logLevel": "warn",
+
+  // Auto-update notifications
+  "autoupdate": "notify",
+
+  // Context compaction
+  "compaction": {
+    "auto": true,
+    "prune": true
+  }
+}
+```
+
+## Environment variable overrides
+
+Two environment variables let you inject or supplement configuration without touching any file on disk:
+
+<CardGroup cols={2}>
+  <Card title="SHOB_CONFIG_CONTENT" icon="code">
+    Provide a full JSON config string directly. Shob parses it and merges it at **project** scope — it takes precedence over both global and any on-disk project config files.
+
+    ```bash
+    export SHOB_CONFIG_CONTENT='{"model":"openai/gpt-4o"}'
+    shob
+    ```
+  </Card>
+  <Card title="SHOB_SERVER_PASSWORD" icon="lock">
+    Sets the Basic Auth password for `shob serve` and `shob web`. If not set, the server starts without authentication (a warning is printed).
+
+    ```bash
+    export SHOB_SERVER_PASSWORD="my-secret"
+    shob serve
+    ```
+  </Card>
+</CardGroup>
+
+<Tip>
+  Additional environment variables (`SHOB_CONFIG`, `SHOB_CONFIG_DIR`, `SHOB_PERMISSION`) are available for advanced usage such as pointing Shob at an alternative config file or directory, or injecting permission overrides directly. See the CLI reference for details.
+</Tip>
+
+## Next steps
+
+<CardGroup cols={3}>
+  <Card title="Providers" icon="key" href="/configuration/providers">
+    Configure Anthropic, OpenAI, and custom OpenAI-compatible providers with API keys and base URLs.
+  </Card>
+  <Card title="MCP Servers" icon="plug" href="/configuration/mcp">
+    Connect external tools via Model Context Protocol — local stdio commands or remote HTTP servers.
+  </Card>
+  <Card title="Agents Config" icon="robot" href="/configuration/agents">
+    Define custom AI agents with their own models, system prompts, tools, and permission rules.
+  </Card>
+</CardGroup>

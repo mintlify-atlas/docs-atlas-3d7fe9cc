@@ -1,0 +1,310 @@
+---
+title: "Adding Custom Tools to Shob via Plugins"
+sidebarTitle: "Tools"
+description: "Define custom tools in a Shob plugin using the ToolDefinition interface. Tools are called by the AI agent during sessions to perform actions."
+---
+
+Tools are callable functions that the Shob AI agent can invoke during a session to take actions — querying a database, calling an external API, reading proprietary file formats, or anything else your workflow requires. You define them in a plugin, and Shob automatically makes them available alongside its built-in tools. The agent decides when to use a tool based on the description you provide.
+
+## How tools work
+
+When a session runs, Shob sends the full list of available tools (built-in + plugin-defined) to the LLM with each request. The model analyses the current task, picks appropriate tools, and generates structured call requests. Shob validates the arguments, executes the tool's `execute` function, and feeds the result back to the model to continue the conversation.
+
+A tool has three parts:
+
+1. **`description`** — A plain-English explanation of what the tool does and when to use it. The LLM reads this to decide whether to call the tool.
+2. **`args`** — A [Zod](https://zod.dev) schema that defines the tool's input parameters. Shob uses this to validate arguments from the model and generate JSON Schema for the LLM.
+3. **`execute`** — An async function that receives the validated arguments and a `ToolContext`, performs the work, and returns a result.
+
+---
+
+## The `tool` helper
+
+The `@shob-ai/plugin` package exports a `tool` helper function that creates a `ToolDefinition` with full TypeScript inference:
+
+```typescript
+import { tool } from "@shob-ai/plugin"
+
+export type ToolDefinition = ReturnType<typeof tool>
+```
+
+### Signature
+
+```typescript
+function tool<Args extends z.ZodRawShape>(input: {
+  description: string
+  args: Args
+  execute(
+    args: z.infer<z.ZodObject<Args>>,
+    context: ToolContext,
+  ): Promise<ToolResult>
+}): ToolDefinition
+```
+
+The `tool` function is generic over `Args` — a Zod raw shape object — so `execute` receives a fully typed `args` parameter.
+
+### Zod schema access
+
+`tool.schema` is a re-export of `zod`, so you can build schemas without a separate import:
+
+```typescript
+import { tool } from "@shob-ai/plugin"
+const z = tool.schema
+```
+
+---
+
+## `ToolContext`
+
+The second argument to every `execute` function provides session and project context:
+
+<ParamField body="sessionID" type="string">
+  The ID of the session that triggered the tool call.
+</ParamField>
+
+<ParamField body="messageID" type="string">
+  The ID of the message that contains this tool call.
+</ParamField>
+
+<ParamField body="agent" type="string">
+  The name of the agent running the session.
+</ParamField>
+
+<ParamField body="directory" type="string">
+  The absolute path to the current project directory. Prefer this over `process.cwd()` when resolving relative paths.
+</ParamField>
+
+<ParamField body="worktree" type="string">
+  The root of the project's Git worktree. Useful for computing stable relative paths (e.g. `path.relative(context.worktree, absPath)`).
+</ParamField>
+
+<ParamField body="abort" type="AbortSignal">
+  An `AbortSignal` that fires when the session is aborted. Pass it to any long-running async operations (e.g. `fetch`) so they are cancelled cleanly.
+</ParamField>
+
+<ParamField body="metadata" type="(input: { title?: string; metadata?: Record<string, any> }) => void">
+  Call this at any time during execution to update the tool's display title and metadata in the chat UI. Useful for streaming progress updates.
+</ParamField>
+
+<ParamField body="ask" type="(input: AskInput) => Promise<void>">
+  Request a permission approval from the user before performing a destructive or sensitive action. The call suspends until the user responds; if the permission is denied, it throws.
+</ParamField>
+
+---
+
+## `ToolResult`
+
+The value returned from `execute` can be a plain string or a richer object:
+
+```typescript
+export type ToolResult =
+  | string
+  | {
+      title?: string
+      output: string
+      metadata?: { [key: string]: any }
+      attachments?: ToolAttachment[]
+    }
+```
+
+<ResponseField name="output" type="string">
+  The text result sent back to the LLM. Keep this concise and structured (JSON, tables, key-value pairs) so the model can parse it easily.
+</ResponseField>
+
+<ResponseField name="title" type="string (optional)">
+  A short human-readable title shown in the chat UI for this tool invocation.
+</ResponseField>
+
+<ResponseField name="metadata" type="Record<string, any> (optional)">
+  Arbitrary metadata stored with the tool call result. Not sent to the LLM.
+</ResponseField>
+
+<ResponseField name="attachments" type="ToolAttachment[] (optional)">
+  File attachments to include with the result. Each attachment has `type: "file"`, a `mime` type, a `url`, and an optional `filename`.
+</ResponseField>
+
+---
+
+## Registering tools in a plugin
+
+Return a `tool` map from your plugin's `server` function under the `tool` key of the `Hooks` object. Each key becomes the tool's identifier:
+
+```typescript
+import type { PluginModule } from "@shob-ai/plugin"
+import { tool } from "@shob-ai/plugin"
+
+const z = tool.schema
+
+export const server: PluginModule["server"] = async (input) => {
+  return {
+    tool: {
+      my_tool_name: tool({
+        description: "...",
+        args: { /* zod shape */ },
+        execute: async (args, ctx) => { /* ... */ },
+      }),
+    },
+  }
+}
+```
+
+---
+
+## Complete example
+
+Here is a complete plugin that registers three custom tools:
+
+```typescript
+import type { PluginModule } from "@shob-ai/plugin"
+import { tool } from "@shob-ai/plugin"
+import path from "node:path"
+import fs from "node:fs/promises"
+
+const z = tool.schema
+
+export const server: PluginModule["server"] = async (input) => {
+  return {
+    tool: {
+
+      // 1. Read a JSON config file relative to the project
+      read_project_config: tool({
+        description:
+          "Read and parse a JSON configuration file from the project directory. " +
+          "Use this to inspect project settings before making changes.",
+        args: {
+          filename: z.string().describe("The filename relative to the project root, e.g. 'tsconfig.json'"),
+        },
+        execute: async ({ filename }, ctx) => {
+          const fullPath = path.join(ctx.directory, filename)
+          const content = await fs.readFile(fullPath, "utf-8")
+          const parsed = JSON.parse(content)
+          return {
+            title: `Read ${filename}`,
+            output: JSON.stringify(parsed, null, 2),
+          }
+        },
+      }),
+
+      // 2. Query a SQLite database
+      query_database: tool({
+        description:
+          "Run a read-only SQL query against the project's SQLite database. " +
+          "Returns results as a JSON array. Never use this for INSERT, UPDATE, or DELETE.",
+        args: {
+          sql: z.string().describe("The SELECT statement to execute"),
+          limit: z.number().int().min(1).max(100).default(20).describe("Maximum rows to return"),
+        },
+        execute: async ({ sql, limit }, ctx) => {
+          // Ask permission before accessing the database
+          await ctx.ask({
+            permission: "database.read",
+            patterns: ["*.db", "*.sqlite"],
+            always: [],
+            metadata: { sql },
+          })
+
+          ctx.metadata({ title: "Querying database…" })
+
+          const { default: Database } = await import("better-sqlite3")
+          const dbPath = path.join(ctx.directory, "data.db")
+          const db = new Database(dbPath, { readonly: true })
+          const rows = db.prepare(sql).all().slice(0, limit)
+          db.close()
+
+          return {
+            title: `Query: ${sql.slice(0, 60)}`,
+            output: JSON.stringify(rows, null, 2),
+            metadata: { rowCount: rows.length },
+          }
+        },
+      }),
+
+      // 3. Fetch data from an external API
+      fetch_github_issue: tool({
+        description:
+          "Fetch a GitHub issue by number from the current repository. " +
+          "Returns the issue title, body, labels, and state.",
+        args: {
+          issue_number: z.number().int().positive().describe("The GitHub issue number"),
+        },
+        execute: async ({ issue_number }, ctx) => {
+          const token = process.env.GITHUB_TOKEN
+          const response = await fetch(
+            `https://api.github.com/repos/owner/repo/issues/${issue_number}`,
+            {
+              headers: {
+                Authorization: token ? `Bearer ${token}` : "",
+                Accept: "application/vnd.github+json",
+              },
+              signal: ctx.abort,
+            },
+          )
+
+          if (!response.ok) {
+            return `Error: GitHub API returned ${response.status} ${response.statusText}`
+          }
+
+          const issue = await response.json()
+          return {
+            title: `Issue #${issue_number}: ${issue.title}`,
+            output: JSON.stringify(
+              {
+                number: issue.number,
+                title: issue.title,
+                state: issue.state,
+                labels: issue.labels.map((l: any) => l.name),
+                body: issue.body?.slice(0, 2000),
+              },
+              null,
+              2,
+            ),
+          }
+        },
+      }),
+    },
+  }
+}
+```
+
+---
+
+## Tool naming conventions
+
+Shob tool identifiers follow these conventions:
+
+- **Snake case** — use `underscore_separated_words`, e.g. `read_project_config`.
+- **Verb-first** — start with an action: `read_`, `write_`, `query_`, `fetch_`, `list_`, `run_`.
+- **Namespaced** — prefix with your domain when ambiguous: `db_query`, `gh_fetch_issue`, `stripe_list_charges`.
+- **Unique** — tool IDs must be unique across all loaded plugins. If two plugins register the same ID, the last one wins.
+
+---
+
+## How the agent decides to use a tool
+
+The LLM chooses tools based entirely on the `description` field. Write descriptions that clearly answer:
+
+- **What does the tool do?** — one concise sentence.
+- **When should it be used?** — describe the use case or trigger.
+- **What does it return?** — briefly describe the output format.
+- **What are the limitations?** — mention things the tool cannot or should not do.
+
+A good description:
+
+> "Query the project's PostgreSQL database with a read-only SQL SELECT statement. Use this when you need to inspect data or verify state. Returns results as a JSON array (max 50 rows). Do not use for INSERT, UPDATE, or DELETE operations."
+
+A bad description:
+
+> "Runs SQL."
+
+---
+
+## Example use cases
+
+| Use case | Tool design |
+|---|---|
+| **Database inspection** | Accept a SQL string, enforce read-only, return JSON rows. |
+| **External API calls** | Accept typed parameters, pass `ctx.abort` to `fetch`, return structured JSON. |
+| **Custom file parsing** | Accept a relative path, read with `ctx.directory`, return parsed content. |
+| **Build system integration** | Run `make`, `cargo build`, etc. via `ctx.$` (the BunShell), return stdout/stderr. |
+| **Secret/config lookup** | Read from a vault or environment and inject values; never return secrets in `output`. |
+| **Issue/ticket tracking** | Accept an ID, call an API, return structured ticket data for the agent to act on. |

@@ -1,0 +1,117 @@
+---
+title: "Install Shob CLI on macOS, Linux, and Windows"
+sidebarTitle: "Installation"
+description: "Install the Shob CLI using npm, bun, or pnpm. Covers macOS, Linux, and Windows with system requirements and upgrade instructions."
+---
+
+The Shob CLI is distributed as the `shob-code` npm package. Installing it globally adds the `shob` binary to your PATH, giving you access to all commands — from running AI coding sessions to managing providers, plugins, and MCP servers — directly from your terminal on macOS, Linux, or Windows.
+
+## System Requirements
+
+| Requirement | Minimum version |
+|---|---|
+| **Node.js** | 18 or later |
+| **npm / bun / pnpm / yarn** | Any current release |
+| **Operating System** | macOS, Linux, or Windows |
+
+<Note>
+  Bun is the recommended runtime for the fastest cold-start and best compatibility with Shob internals. The CLI runs correctly on any Node.js-compatible runtime.
+</Note>
+
+## Installation
+
+Install `shob-code` globally with your preferred package manager:
+
+<CodeGroup>
+  ```bash npm
+  npm install -g shob-code
+  ```
+
+  ```bash bun
+  bun install -g shob-code
+  ```
+
+  ```bash pnpm
+  pnpm install -g shob-code
+  ```
+
+  ```bash yarn
+  yarn global add shob-code
+  ```
+</CodeGroup>
+
+## Verify the Installation
+
+Confirm that the `shob` binary is available and shows the correct version:
+
+```bash
+shob --version
+```
+
+Expected output:
+
+```
+0.0.2
+```
+
+You can also display the full help text to confirm all commands are registered:
+
+```bash
+shob --help
+```
+
+## Upgrading
+
+To upgrade Shob to the latest release, reinstall the package globally with the same package manager you used during installation:
+
+```bash
+npm update -g shob-code
+```
+
+Alternatively, use Shob's built-in upgrade command, which auto-detects your package manager:
+
+```bash
+shob upgrade
+```
+
+To upgrade to a specific version:
+
+```bash
+shob upgrade 0.0.2
+```
+
+<Tip>
+  If `shob upgrade` cannot detect your package manager it will prompt you to select one manually. You can also pass `--method npm`, `--method pnpm`, `--method bun`, or `--method brew` to skip the prompt.
+</Tip>
+
+## Desktop App
+
+A graphical desktop application for Shob is also available, providing a visual interface for managing sessions, reviewing diffs, and monitoring agent activity without leaving your workflow.
+
+<Card title="Shob Desktop App" icon="desktop" href="/features/desktop-app">
+  Learn how to install and use the Shob desktop application.
+</Card>
+
+## Global Flags
+
+The following flags can be passed to any `shob` command and take effect before the command handler runs:
+
+| Flag | Type | Description |
+|---|---|---|
+| `--log-level` | `DEBUG` \| `INFO` \| `WARN` \| `ERROR` | Set the minimum log level written to the log file. Defaults to `INFO` on released builds and `DEBUG` on local builds. |
+| `--print-logs` | boolean | Print log output to `stderr` in addition to the log file. Useful for debugging or piping logs to external tooling. |
+| `--pure` | boolean | Run without loading any external plugins. Useful for reproducing issues in a clean environment or running in restricted CI contexts. |
+
+### Examples
+
+```bash
+# Show debug logs in the terminal while running a task
+shob run --print-logs --log-level DEBUG "Refactor the database layer"
+
+# Run with all plugins disabled
+shob run --pure "Generate a summary of recent commits"
+```
+
+<Note>
+  Log files are written to a persistent path in your Shob data directory. If something goes wrong, Shob will print the exact log file path in the error output so you can inspect it directly.
+</Note>

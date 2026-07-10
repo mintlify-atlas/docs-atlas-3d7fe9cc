@@ -1,0 +1,138 @@
+---
+title: "Shob Plugin System: Extend Agent Capabilities"
+sidebarTitle: "Overview"
+description: "The @shob-ai/plugin package lets you build plugins that add tools, authentication methods, provider models, and event hooks to Shob."
+---
+
+Shob plugins are npm packages that extend the capabilities of the Shob AI agent at runtime. A plugin can register custom tools the agent can call, add authentication flows for new AI providers, override LLM parameters, intercept and modify chat messages, and respond to any event the server emits. Plugins run server-side, inside the Shob process, giving them full access to the session state and project filesystem.
+
+## Installation
+
+```bash
+npm install @shob-ai/plugin
+```
+
+The `@shob-ai/plugin` package ships TypeScript source (`"type": "module"`) and re-exports everything you need to author a plugin. It also exports a `tool` helper for defining type-safe custom tools.
+
+---
+
+## Plugin module structure
+
+A plugin is an ES module with a named export called `server`. The export must conform to the `PluginModule` interface:
+
+```typescript
+export type PluginModule = {
+  id?: string        // Optional identifier for the plugin
+  server: Plugin     // Required: the server-side plugin function
+}
+
+export type Plugin = (input: PluginInput, options?: PluginOptions) => Promise<Hooks>
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` (optional) | A stable identifier for this plugin. If omitted, Shob uses the package name. |
+| `server` | `Plugin` | The main plugin function called once per project when the server starts. It receives a `PluginInput` context and returns a `Hooks` object. |
+
+### `PluginInput`
+
+The `input` argument your plugin function receives:
+
+<ParamField body="client" type="OpencodeClient">
+  A typed REST client already pointed at the running Shob server. Use it to inspect sessions, files, and configuration.
+</ParamField>
+
+<ParamField body="project" type="Project">
+  The current project object from the Shob API.
+</ParamField>
+
+<ParamField body="directory" type="string">
+  The absolute path to the project's working directory.
+</ParamField>
+
+<ParamField body="worktree" type="string">
+  The root of the project's Git worktree. Useful for computing stable relative paths.
+</ParamField>
+
+<ParamField body="serverUrl" type="URL">
+  The base URL of the running Shob server.
+</ParamField>
+
+<ParamField body="$" type="BunShell">
+  A Bun shell instance scoped to the project directory. Use it to run commands as part of tool execution or hooks.
+</ParamField>
+
+<ParamField body="experimental_workspace" type="object">
+  Experimental API for registering custom workspace adapters. Call `register(type, adapter)` to add a new workspace backend.
+</ParamField>
+
+---
+
+## Registering a plugin in `shob.json`
+
+Plugins are listed in your project's `shob.json` under the `"plugins"` key. Each entry is either a package name or a two-element tuple `[packageName, optionsObject]`:
+
+```json
+{
+  "plugins": [
+    "my-shob-plugin",
+    ["another-plugin", { "apiKey": "env:MY_API_KEY" }]
+  ]
+}
+```
+
+When Shob starts, it `import()`s each plugin module, calls the `server` function with the current project's `PluginInput` and any options you provided, and merges the returned `Hooks` into the running server.
+
+---
+
+## Minimal plugin example
+
+```typescript
+// my-shob-plugin/src/index.ts
+import type { PluginModule } from "@shob-ai/plugin"
+
+export const server: PluginModule["server"] = async (input, options) => {
+  console.log("Plugin loaded for project:", input.directory)
+
+  return {
+    // Add hooks here — see /plugins/hooks
+    // Add custom tools here — see /plugins/tools
+  }
+}
+```
+
+After publishing (or `npm link`-ing) the package, register it:
+
+```json
+{
+  "plugins": ["my-shob-plugin"]
+}
+```
+
+---
+
+## What plugins can add
+
+| Capability | How |
+|---|---|
+| **Custom tools** | Return a `tool` map from the `Hooks` object. The AI agent can call these like any built-in tool. |
+| **Authentication methods** | Return an `auth` hook with `provider` and `methods` to add API-key or OAuth flows. |
+| **Provider overrides** | Return a `provider` hook to add or modify models for an existing provider. |
+| **Event handlers** | Return an `event` hook to react to any server-emitted event. |
+| **LLM parameter tuning** | Return a `chat.params` hook to adjust temperature, topP, maxTokens, etc. |
+| **Header injection** | Return a `chat.headers` hook to add headers to LLM API calls. |
+| **Permission decisions** | Return a `permission.ask` hook to auto-allow, auto-deny, or customise permissions. |
+| **Shell environment** | Return a `shell.env` hook to inject environment variables. |
+| **Tool interception** | Return `tool.execute.before` / `tool.execute.after` hooks to modify inputs or outputs. |
+| **System prompt control** | Return `experimental.chat.system.transform` to append or replace the system prompt. |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Hooks Reference" icon="webhook" href="/plugins/hooks">
+    Full reference for every hook in the `Hooks` interface, with input/output types and examples.
+  </Card>
+  <Card title="Custom Tools" icon="wrench" href="/plugins/tools">
+    How to define custom tools with `ToolDefinition` and make them available to the AI agent.
+  </Card>
+</CardGroup>

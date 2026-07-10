@@ -1,0 +1,228 @@
+---
+title: "Shob Permission System: Control AI Agent Actions"
+sidebarTitle: "Permissions"
+description: "Shob's permission system lets you approve or deny every AI agent action — file reads, shell commands, external requests — before it executes."
+---
+
+Before any AI agent action touches your filesystem, executes a shell command, or reaches out to the web, Shob checks it against a **permission ruleset**. Every rule maps an action category and a file/command pattern to one of three outcomes: `allow` (proceed silently), `deny` (block immediately), or `ask` (pause and prompt you for approval). This gives you precise, auditable control over what the agent is allowed to do — without having to babysit every keystroke.
+
+## How It Works
+
+When an agent wants to call a tool, Shob evaluates the request against a chain of rulesets in order:
+
+1. **Built-in defaults** — sensible safe defaults (e.g., `bash ls *` → `allow`)
+2. **Agent ruleset** — the permission rules baked into the agent's configuration
+3. **Session-approved rules** — any patterns the user approved with "always allow" during the current session
+
+The evaluation takes the **last matching rule** in the combined chain. This means later rules override earlier ones, and more specific patterns override wildcards.
+
+```
+action: "allow" | "deny" | "ask"  ← result of the last matching rule
+```
+
+If no rule matches, the default action is `ask`.
+
+<Note>
+When you respond to a permission prompt with **"always allow"**, Shob records the pattern in the session's approved ruleset for the rest of that session. It does **not** permanently modify your config file.
+</Note>
+
+## Permission Categories
+
+<CardGroup cols={2}>
+  <Card title="read" icon="file-magnifying-glass">
+    Controls which files the agent may read. Supports glob patterns per path. Sensitive files like `.env` and `.env.*` default to `ask`.
+  </Card>
+  <Card title="edit" icon="file-pen">
+    Controls write operations: creating, editing, patching, or overwriting files. Also covers `write`, `apply_patch`, and `multiedit` tool calls.
+  </Card>
+  <Card title="bash" icon="terminal">
+    Controls shell command execution. Patterns match the full command string (e.g., `"git status *"`, `"npm run *"`). Common safe read-only commands like `ls`, `cat`, `grep`, `git diff` are pre-allowed by the built-in defaults.
+  </Card>
+  <Card title="external_directory" icon="folder-open">
+    Controls access to directories outside the current project worktree. Defaults to `ask` for most paths; skill directories are pre-allowed.
+  </Card>
+  <Card title="webfetch / websearch" icon="globe">
+    Controls whether the agent can fetch URLs or run web searches.
+  </Card>
+  <Card title="plan_enter / plan_exit" icon="list-check">
+    Controls entering and exiting plan mode. The `build` agent enables `plan_enter`; the `plan` agent enables `plan_exit`.
+  </Card>
+  <Card title="question" icon="circle-question">
+    Controls whether the agent can ask you clarifying questions mid-task. Enabled in `build`, disabled by default in other agents.
+  </Card>
+  <Card title="doom_loop" icon="rotate">
+    Guards against runaway agent loops. Defaults to `ask`.
+  </Card>
+</CardGroup>
+
+Additional categories available: `glob`, `grep`, `list`, `task`, `todowrite`, `codesearch`, `lsp`, `skill`.
+
+## Permission Rule Syntax
+
+Permission rules are expressed as a nested object in `shob.json` (or per-agent config). Each key is a **permission category** and the value is either a single action string or an object mapping **glob patterns** to actions.
+
+```json shob.json
+{
+  "permission": {
+    "bash": "ask",
+    "read": {
+      "*": "allow",
+      "*.env": "ask",
+      "*.env.*": "ask",
+      "*.env.example": "allow"
+    },
+    "edit": {
+      "src/**": "allow",
+      "*.lock": "deny"
+    },
+    "webfetch": "deny"
+  }
+}
+```
+
+**Rule resolution:**
+
+- A plain string (e.g., `"bash": "allow"`) is shorthand for `{ "*": "allow" }` — it matches all patterns for that category.
+- Object form allows per-path granularity. Patterns are matched using wildcard (`*`) and glob semantics.
+- Rules are evaluated in the order they are declared. The **last matching rule wins**.
+
+<Tip>
+Use `"*": "allow"` followed by specific deny rules to allow everything except specific paths, or use `"*": "ask"` followed by `allow` rules for specific safe patterns.
+</Tip>
+
+### Glob pattern examples
+
+```json
+{
+  "permission": {
+    "edit": {
+      "*": "ask",
+      "src/**/*.ts": "allow",
+      "**/*.test.ts": "allow",
+      "dist/**": "deny"
+    },
+    "bash": {
+      "*": "ask",
+      "npm run test*": "allow",
+      "rm *": "deny"
+    }
+  }
+}
+```
+
+Home directory shorthand is expanded automatically:
+
+```json
+{
+  "permission": {
+    "external_directory": {
+      "~/projects/**": "allow"
+    }
+  }
+}
+```
+
+## Agent-Level vs Global Permissions
+
+Permissions can be set at two scopes:
+
+**Global** — applies to all agents as a baseline. Set in your `shob.json`:
+
+```json shob.json
+{
+  "permission": {
+    "webfetch": "deny"
+  }
+}
+```
+
+**Agent-level** — applies only to that agent, merged on top of the global defaults:
+
+```json shob.json
+{
+  "agent": {
+    "build": {
+      "permission": {
+        "bash": {
+          "*": "ask",
+          "make *": "allow"
+        }
+      }
+    }
+  }
+}
+```
+
+Agent-level rules are appended *after* global rules in the evaluation chain, so they override global settings for that agent only.
+
+## Permission Auto-Respond
+
+If you trust specific patterns and never want to be asked about them, add them to the global `permission` config with `"allow"`:
+
+```json shob.json
+{
+  "permission": {
+    "bash": {
+      "*": "ask",
+      "npm run *": "allow",
+      "git *": "allow",
+      "cargo *": "allow"
+    },
+    "read": {
+      "*": "allow"
+    },
+    "edit": {
+      "src/**": "allow",
+      "tests/**": "allow"
+    }
+  }
+}
+```
+
+Rules configured this way are applied before the interactive prompt — the agent proceeds without pausing.
+
+## Built-in Default Rules
+
+Shob ships with sensible defaults that pre-allow common read-only shell operations so you are not interrupted for routine commands:
+
+| Category | Pattern | Action |
+|----------|---------|--------|
+| `bash` | `ls *` | `allow` |
+| `bash` | `cat *` | `allow` |
+| `bash` | `pwd *` | `allow` |
+| `bash` | `echo *` | `allow` |
+| `bash` | `git status *` | `allow` |
+| `bash` | `git diff *` | `allow` |
+| `bash` | `git log *` | `allow` |
+| `bash` | `git show *` | `allow` |
+| `bash` | `git branch *` | `allow` |
+| `bash` | `grep *` | `allow` |
+| `bash` | `which *` | `allow` |
+| `read` | `*.env.example` | `allow` |
+| `read` | `*.env`, `*.env.*` | `ask` |
+
+These defaults are always applied first and can be overridden by your own rules.
+
+## Skipping Permissions (Dangerous)
+
+For automated pipelines, CI environments, or situations where you fully trust the agent and the environment, you can bypass all non-denied permission prompts:
+
+```bash
+shob run --dangerously-skip-permissions "Migrate all tables to the new schema"
+```
+
+<Warning>
+`--dangerously-skip-permissions` auto-approves every `ask` action. Only `deny` rules still block execution. Use this flag only in sandboxed, non-production environments where you accept the risk of the agent running arbitrary commands without confirmation.
+</Warning>
+
+## Permission Replies
+
+When Shob pauses to ask you about a tool call, you have three choices:
+
+| Reply | Effect |
+|-------|--------|
+| **Once** | Allow this specific call, but ask again next time |
+| **Always** | Allow this pattern for the rest of the session |
+| **Reject** | Deny this call and cancel all pending requests for this session |
+
+Selecting **Reject** also provides an optional feedback field — the agent receives your rejection message and can adjust its approach.

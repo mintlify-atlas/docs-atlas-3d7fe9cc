@@ -1,0 +1,854 @@
+---
+title: "Shob Plugin Hooks Reference"
+sidebarTitle: "Hooks"
+description: "Complete reference for all Shob plugin hooks. Covers event, config, auth, provider, chat.message, chat.params, permission.ask, shell.env, and experimental hooks."
+---
+
+The `Hooks` interface is the object your plugin's `server` function returns. Each key is optional — include only the hooks you need. Shob merges hooks from all loaded plugins at startup, so multiple plugins can register the same hook type without conflict.
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+export const server = async (): Promise<Hooks> => {
+  return {
+    "chat.params": async (input, output) => {
+      output.temperature = 0.2
+    },
+  }
+}
+```
+
+The sections below document every available hook. Each hook is an async function — Shob `await`s them in sequence before continuing.
+
+---
+
+## Lifecycle hooks
+
+<Accordion title="event — handle any Shob server event">
+
+Called every time the Shob server emits an event (message updates, session status changes, file edits, permission requests, etc.). Use this to log, forward, or react to events in real time.
+
+**Signature**
+
+```typescript
+event?: (input: { event: Event }) => Promise<void>
+```
+
+**Input**
+
+| Field | Type | Description |
+|---|---|---|
+| `event` | `Event` | The emitted event object. The `type` discriminant identifies which event fired. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  event: async ({ event }) => {
+    if (event.type === "session.idle") {
+      console.log("Session went idle:", event.properties.sessionID)
+    }
+  },
+}
+```
+
+</Accordion>
+
+<Accordion title="config — modify or validate configuration on load">
+
+Called once when Shob loads its configuration. Mutate the `input` object to override any config value before the server uses it.
+
+**Signature**
+
+```typescript
+config?: (input: Config) => Promise<void>
+```
+
+**Input**
+
+| Field | Type | Description |
+|---|---|---|
+| `input` | `Config` | The fully-merged configuration object. Mutate it in place. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  config: async (cfg) => {
+    // Force a specific log level regardless of shob.json
+    cfg.logLevel = "info"
+  },
+}
+```
+
+</Accordion>
+
+---
+
+## Chat hooks
+
+<Accordion title="chat.message — called after a message is received">
+
+Called after the server receives a new user message, before the agent processes it. Inspect or log the message and its parsed parts.
+
+**Signature**
+
+```typescript
+"chat.message"?: (
+  input: {
+    sessionID: string
+    agent?: string
+    model?: { providerID: string; modelID: string }
+    messageID?: string
+    variant?: string
+  },
+  output: { message: UserMessage; parts: Part[] },
+) => Promise<void>
+```
+
+**Input fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `sessionID` | `string` | The session receiving the message. |
+| `agent` | `string?` | The agent handling the message, if known. |
+| `model` | `{ providerID, modelID }?` | The provider and model that will respond. |
+| `messageID` | `string?` | The ID of the incoming message. |
+| `variant` | `string?` | Message variant identifier, if applicable. |
+
+**Output fields** (read-only in this hook)
+
+| Field | Type | Description |
+|---|---|---|
+| `message` | `UserMessage` | The full user message object. |
+| `parts` | `Part[]` | The parsed message parts (text, files, etc.). |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "chat.message": async (input, output) => {
+    console.log(`[${input.sessionID}] New message:`, output.message.id)
+  },
+}
+```
+
+</Accordion>
+
+<Accordion title="chat.params — modify LLM parameters">
+
+Called before each LLM API call. Mutate the `output` fields to override generation parameters such as temperature, topP, or maxOutputTokens.
+
+**Signature**
+
+```typescript
+"chat.params"?: (
+  input: {
+    sessionID: string
+    agent: string
+    model: Model
+    provider: ProviderContext
+    message: UserMessage
+  },
+  output: {
+    temperature: number
+    topP: number
+    topK: number
+    maxOutputTokens: number | undefined
+    options: Record<string, any>
+  },
+) => Promise<void>
+```
+
+**Input fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `sessionID` | `string` | The current session ID. |
+| `agent` | `string` | The active agent name. |
+| `model` | `Model` | The model being used. |
+| `provider` | `ProviderContext` | The provider context, including `source`, `info`, and `options`. |
+| `message` | `UserMessage` | The user message triggering this call. |
+
+**Output fields** (mutate to override)
+
+| Field | Type | Description |
+|---|---|---|
+| `temperature` | `number` | Sampling temperature. |
+| `topP` | `number` | Top-P nucleus sampling parameter. |
+| `topK` | `number` | Top-K sampling parameter. |
+| `maxOutputTokens` | `number \| undefined` | Maximum tokens to generate. |
+| `options` | `Record<string, any>` | Additional provider-specific options. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "chat.params": async (input, output) => {
+    // Use lower temperature for code-focused agents
+    if (input.agent === "coder") {
+      output.temperature = 0.1
+      output.maxOutputTokens = 8192
+    }
+  },
+}
+```
+
+</Accordion>
+
+<Accordion title="chat.headers — inject headers sent to the LLM API">
+
+Called before each LLM API call. Add or override HTTP headers that will be sent to the provider's API endpoint.
+
+**Signature**
+
+```typescript
+"chat.headers"?: (
+  input: {
+    sessionID: string
+    agent: string
+    model: Model
+    provider: ProviderContext
+    message: UserMessage
+  },
+  output: { headers: Record<string, string> },
+) => Promise<void>
+```
+
+**Output fields** (mutate to add headers)
+
+| Field | Type | Description |
+|---|---|---|
+| `headers` | `Record<string, string>` | Headers object. Set keys to add or override headers. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "chat.headers": async (input, output) => {
+    output.headers["X-Trace-ID"] = crypto.randomUUID()
+  },
+}
+```
+
+</Accordion>
+
+---
+
+## Permission hooks
+
+<Accordion title="permission.ask — customise permission decisions">
+
+Called whenever the agent encounters an action that requires user approval (e.g. writing a file, running a command). Mutate `output.status` to auto-allow, auto-deny, or keep the default "ask" behaviour.
+
+**Signature**
+
+```typescript
+"permission.ask"?: (
+  input: Permission,
+  output: { status: "ask" | "deny" | "allow" },
+) => Promise<void>
+```
+
+**Input fields** (`Permission`)
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | Unique permission request ID. |
+| `type` | `string` | The type of action being requested (e.g. `"file.write"`, `"shell.run"`). |
+| `pattern` | `string \| string[]?` | File/command pattern(s) associated with the request. |
+| `sessionID` | `string` | The session that triggered the request. |
+| `messageID` | `string` | The message that triggered the request. |
+| `callID` | `string?` | The tool call ID, if applicable. |
+| `title` | `string` | A human-readable title for the permission request. |
+| `metadata` | `Record<string, unknown>` | Additional context specific to the permission type. |
+
+**Output fields** (mutate to decide)
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | `"ask" \| "deny" \| "allow"` | `"allow"` auto-approves, `"deny"` rejects, `"ask"` shows the normal prompt. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "permission.ask": async (input, output) => {
+    // Auto-allow writes inside the project's src/ directory
+    if (
+      input.type === "file.write" &&
+      typeof input.pattern === "string" &&
+      input.pattern.startsWith("src/")
+    ) {
+      output.status = "allow"
+    }
+  },
+}
+```
+
+</Accordion>
+
+---
+
+## Environment hooks
+
+<Accordion title="shell.env — inject environment variables into shell sessions">
+
+Called before a shell command runs. Mutate `output.env` to inject additional environment variables into the command's environment.
+
+**Signature**
+
+```typescript
+"shell.env"?: (
+  input: { cwd: string; sessionID?: string; callID?: string },
+  output: { env: Record<string, string> },
+) => Promise<void>
+```
+
+**Input fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `cwd` | `string` | The working directory for the shell command. |
+| `sessionID` | `string?` | The session the command is associated with. |
+| `callID` | `string?` | The tool call ID, if the command was triggered by a tool. |
+
+**Output fields** (mutate to inject variables)
+
+| Field | Type | Description |
+|---|---|---|
+| `env` | `Record<string, string>` | Environment variables map. Add keys to inject them. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "shell.env": async (input, output) => {
+    output.env["DATABASE_URL"] = process.env.DATABASE_URL ?? ""
+    output.env["NODE_ENV"] = "development"
+  },
+}
+```
+
+</Accordion>
+
+---
+
+## Tool hooks
+
+<Accordion title="tool.execute.before — modify tool arguments before execution">
+
+Called immediately before a tool is executed. Mutate `output.args` to change the arguments the tool receives.
+
+**Signature**
+
+```typescript
+"tool.execute.before"?: (
+  input: { tool: string; sessionID: string; callID: string },
+  output: { args: any },
+) => Promise<void>
+```
+
+**Input fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `tool` | `string` | The tool identifier being called. |
+| `sessionID` | `string` | The session the call belongs to. |
+| `callID` | `string` | The unique call ID for this invocation. |
+
+**Output fields** (mutate to override arguments)
+
+| Field | Type | Description |
+|---|---|---|
+| `args` | `any` | The arguments object that will be passed to the tool's `execute` function. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "tool.execute.before": async (input, output) => {
+    // Normalise any file paths before the tool sees them
+    if (input.tool === "file_write" && typeof output.args.path === "string") {
+      output.args.path = output.args.path.replace(/\\/g, "/")
+    }
+  },
+}
+```
+
+</Accordion>
+
+<Accordion title="tool.execute.after — modify tool output after execution">
+
+Called after a tool completes. Mutate `output.output` or `output.title` to transform what the agent sees as the tool's result.
+
+**Signature**
+
+```typescript
+"tool.execute.after"?: (
+  input: { tool: string; sessionID: string; callID: string; args: any },
+  output: {
+    title: string
+    output: string
+    metadata: any
+  },
+) => Promise<void>
+```
+
+**Input fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `tool` | `string` | The tool identifier that was called. |
+| `sessionID` | `string` | The session the call belongs to. |
+| `callID` | `string` | The unique call ID for this invocation. |
+| `args` | `any` | The arguments that were passed to the tool. |
+
+**Output fields** (mutate to transform result)
+
+| Field | Type | Description |
+|---|---|---|
+| `title` | `string` | The display title shown in the chat UI. |
+| `output` | `string` | The tool output string sent back to the LLM. |
+| `metadata` | `any` | Additional metadata attached to the tool result. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "tool.execute.after": async (input, output) => {
+    // Truncate very long tool outputs to save tokens
+    if (output.output.length > 10_000) {
+      output.output = output.output.slice(0, 10_000) + "\n...[truncated]"
+    }
+  },
+}
+```
+
+</Accordion>
+
+<Accordion title="tool.definition — modify tool descriptions/parameters sent to LLM">
+
+Called when Shob assembles the tool list to send to the LLM. Mutate `output.description` or `output.parameters` to override how a tool is presented to the model — without changing its behaviour.
+
+**Signature**
+
+```typescript
+"tool.definition"?: (
+  input: { toolID: string },
+  output: { description: string; parameters: any },
+) => Promise<void>
+```
+
+**Input fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `toolID` | `string` | The identifier of the tool whose definition is being prepared. |
+
+**Output fields** (mutate to override)
+
+| Field | Type | Description |
+|---|---|---|
+| `description` | `string` | The tool description shown to the LLM. |
+| `parameters` | `any` | The JSON Schema parameters object for the tool. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "tool.definition": async ({ toolID }, output) => {
+    if (toolID === "shell") {
+      output.description +=
+        "\nIMPORTANT: Always use the project Makefile targets instead of raw commands."
+    }
+  },
+}
+```
+
+</Accordion>
+
+---
+
+## Command hooks
+
+<Accordion title="command.execute.before — intercept command execution">
+
+Called before a slash command is executed. Populate `output.parts` to short-circuit the command and return a custom response.
+
+**Signature**
+
+```typescript
+"command.execute.before"?: (
+  input: { command: string; sessionID: string; arguments: string },
+  output: { parts: Part[] },
+) => Promise<void>
+```
+
+**Input fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `command` | `string` | The command name (without the leading `/`). |
+| `sessionID` | `string` | The session the command was sent from. |
+| `arguments` | `string` | The raw argument string following the command name. |
+
+**Output fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `parts` | `Part[]` | If populated, these parts are used as the command's result and normal execution is skipped. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "command.execute.before": async (input, output) => {
+    if (input.command === "version") {
+      output.parts = [
+        {
+          id: "p1",
+          sessionID: input.sessionID,
+          messageID: "",
+          type: "text",
+          text: "Plugin version: 1.0.0",
+        },
+      ]
+    }
+  },
+}
+```
+
+</Accordion>
+
+---
+
+## Provider hooks
+
+<Accordion title="provider — add or override provider models">
+
+Return a `ProviderHook` to register additional models for a provider or override existing ones. The `models` function receives the current provider object and an auth context, and should return a map of model IDs to `ModelV2` objects.
+
+**Type**
+
+```typescript
+export type ProviderHook = {
+  id: string
+  models?: (
+    provider: ProviderV2,
+    ctx: ProviderHookContext,
+  ) => Promise<Record<string, ModelV2>>
+}
+```
+
+**Fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | The provider ID to target (e.g. `"anthropic"`, `"openai"`). |
+| `models` | `function?` | Async function that returns a map of additional or replacement model definitions. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  provider: {
+    id: "openai",
+    models: async (provider, ctx) => {
+      return {
+        "gpt-5-turbo": {
+          id: "gpt-5-turbo",
+          name: "GPT-5 Turbo",
+          contextLength: 256_000,
+        },
+      }
+    },
+  },
+}
+```
+
+</Accordion>
+
+---
+
+## Auth hooks
+
+<Accordion title="auth — add authentication methods for providers">
+
+Return an `AuthHook` to register new authentication flows (API key or OAuth) for a provider. These appear in the Shob TUI's auth setup flow.
+
+**Type** (abbreviated)
+
+```typescript
+export type AuthHook = {
+  provider: string
+  loader?: (auth: () => Promise<Auth>, provider: Provider) => Promise<Record<string, any>>
+  methods: Array<ApiAuthMethod | OAuthAuthMethod>
+}
+```
+
+**Fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `provider` | `string` | The provider ID this auth hook targets. |
+| `loader` | `function?` | Async function that loads stored credentials and returns a context object. |
+| `methods` | `Array` | One or more auth method definitions (type `"api"` or `"oauth"`). |
+
+**API key method example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  auth: {
+    provider: "my-provider",
+    methods: [
+      {
+        type: "api",
+        label: "API Key",
+        prompts: [
+          {
+            type: "text",
+            key: "apiKey",
+            message: "Enter your API key",
+            placeholder: "sk-...",
+            validate: (v) => (v.startsWith("sk-") ? undefined : "Key must start with sk-"),
+          },
+        ],
+      },
+    ],
+  },
+}
+```
+
+**OAuth method example**
+
+```typescript
+import type { Hooks, AuthOAuthResult } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  auth: {
+    provider: "my-oauth-provider",
+    methods: [
+      {
+        type: "oauth",
+        label: "Sign in with MyProvider",
+        authorize: async (): Promise<AuthOAuthResult> => {
+          return {
+            url: "https://my-provider.com/oauth/authorize?client_id=xxx",
+            instructions: "Complete the sign-in in your browser.",
+            method: "code",
+            callback: async (code) => {
+              const tokens = await exchangeCode(code)
+              return {
+                type: "success",
+                refresh: tokens.refresh_token,
+                access: tokens.access_token,
+                expires: tokens.expires_at,
+              }
+            },
+          }
+        },
+      },
+    ],
+  },
+}
+```
+
+</Accordion>
+
+---
+
+## Experimental hooks
+
+<Accordion title="experimental.chat.messages.transform — transform the full message list">
+
+Called before the messages array is sent to the LLM. Mutate `output.messages` to add, remove, or reorder messages.
+
+**Signature**
+
+```typescript
+"experimental.chat.messages.transform"?: (
+  input: {},
+  output: {
+    messages: {
+      info: Message
+      parts: Part[]
+    }[]
+  },
+) => Promise<void>
+```
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "experimental.chat.messages.transform": async (_input, output) => {
+    // Remove any messages marked as synthetic
+    output.messages = output.messages.filter(
+      (m) => !m.parts.some((p) => p.type === "text" && p.synthetic),
+    )
+  },
+}
+```
+
+</Accordion>
+
+<Accordion title="experimental.chat.system.transform — modify the system prompt">
+
+Called before the system prompt is sent to the LLM. Push strings onto `output.system` to append context, or replace the array entirely to override the default system prompt.
+
+**Signature**
+
+```typescript
+"experimental.chat.system.transform"?: (
+  input: { sessionID?: string; model: Model },
+  output: { system: string[] },
+) => Promise<void>
+```
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "experimental.chat.system.transform": async (input, output) => {
+    output.system.push("Always respond in British English.")
+  },
+}
+```
+
+</Accordion>
+
+<Accordion title="experimental.session.compacting — customise compaction prompt">
+
+Called before a session compaction starts. Append strings to `output.context` to add extra context, or set `output.prompt` to replace the default compaction prompt entirely.
+
+**Signature**
+
+```typescript
+"experimental.session.compacting"?: (
+  input: { sessionID: string },
+  output: { context: string[]; prompt?: string },
+) => Promise<void>
+```
+
+**Output fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `context` | `string[]` | Additional context strings appended to the default compaction prompt. |
+| `prompt` | `string?` | If set, replaces the default compaction prompt entirely. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "experimental.session.compacting": async (input, output) => {
+    output.context.push("Preserve all TODO items in the summary.")
+  },
+}
+```
+
+</Accordion>
+
+<Accordion title="experimental.compaction.autocontinue — control auto-continue after compaction">
+
+Called after compaction succeeds and before Shob adds a synthetic "continue" user turn. Set `output.enabled = false` to skip the automatic continuation.
+
+**Signature**
+
+```typescript
+"experimental.compaction.autocontinue"?: (
+  input: {
+    sessionID: string
+    agent: string
+    model: Model
+    provider: ProviderContext
+    message: UserMessage
+    overflow: boolean
+  },
+  output: { enabled: boolean },
+) => Promise<void>
+```
+
+**Output fields**
+
+| Field | Type | Description |
+|---|---|---|
+| `enabled` | `boolean` | Defaults to `true`. Set to `false` to skip the synthetic "continue" turn. |
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "experimental.compaction.autocontinue": async (input, output) => {
+    // Don't auto-continue if the compaction was triggered by a context overflow
+    if (input.overflow) {
+      output.enabled = false
+    }
+  },
+}
+```
+
+</Accordion>
+
+<Accordion title="experimental.text.complete — called when a text part completes">
+
+Called when a streaming text part from the LLM finishes. Mutate `output.text` to post-process the final text before it is stored.
+
+**Signature**
+
+```typescript
+"experimental.text.complete"?: (
+  input: { sessionID: string; messageID: string; partID: string },
+  output: { text: string },
+) => Promise<void>
+```
+
+**Example**
+
+```typescript
+import type { Hooks } from "@shob-ai/plugin"
+
+const hooks: Hooks = {
+  "experimental.text.complete": async (input, output) => {
+    // Strip any trailing whitespace the model may produce
+    output.text = output.text.trimEnd()
+  },
+}
+```
+
+</Accordion>

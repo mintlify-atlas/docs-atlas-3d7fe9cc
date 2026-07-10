@@ -1,0 +1,123 @@
+---
+title: "shob agent — Create and List Custom Agents"
+sidebarTitle: "agent"
+description: "shob agent manages custom AI agents. Subcommands: create, list. Create agents with specific models, tools, and permission rules."
+---
+
+`shob agent` lets you define custom AI agents with tailored system prompts, tool sets, models, and operating modes. A custom agent is stored as a Markdown file with YAML frontmatter and can be used in place of the default agent by passing `--agent <name>` to `shob run`.
+
+## Usage
+
+```bash
+shob agent <subcommand>
+```
+
+---
+
+## `shob agent create`
+
+Launches a wizard (or runs fully non-interactively when all flags are provided) to generate a new agent configuration file. Shob uses the provided description to generate a system prompt and an identifier for the agent using the configured AI model.
+
+```bash
+shob agent create [flags]
+```
+
+### Flags
+
+<ParamField body="--path" type="string">
+  Directory path where the agent file should be written. If omitted, the wizard asks whether to save the agent to the current project (`.shob/agent/`) or globally (`~/.config/shob/agent/`).
+</ParamField>
+
+<ParamField body="--description" type="string">
+  A plain-language description of what the agent should do. Shob passes this to the AI model to generate the system prompt. If omitted, the wizard prompts for it interactively.
+</ParamField>
+
+<ParamField body="--mode" type="string">
+  The role this agent can fulfil. Accepted values:
+
+  - `all` — the agent can act as both a primary agent and a subagent (default when using the wizard)
+  - `primary` — the agent acts as the main, top-level agent
+  - `subagent` — the agent can only be invoked by another agent as a subtask
+</ParamField>
+
+<ParamField body="--tools" type="string">
+  Comma-separated list of tools to enable for the agent. Pass an empty string (`""`) to enable all tools. If omitted, the wizard shows a multi-select prompt with all tools pre-selected.
+
+  Available tools: `bash`, `read`, `write`, `edit`, `list`, `glob`, `grep`, `webfetch`, `task`, `todowrite`
+</ParamField>
+
+<ParamField body="--model" type="string">
+  Alias: `-m`
+
+  The model to use when generating the agent's system prompt, in `provider/model` format. Defaults to the project's configured model.
+</ParamField>
+
+### Non-interactive example
+
+When `--path`, `--description`, `--mode`, and `--tools` are all provided, `shob agent create` runs without any prompts and prints the created file path to `stdout`.
+
+```bash
+shob agent create \
+  --path .shob/agent \
+  --description "Reviews pull requests and suggests improvements to code quality and test coverage" \
+  --mode primary \
+  --tools "bash,read,glob,grep,webfetch"
+```
+
+### Interactive example
+
+```bash
+shob agent create
+```
+
+The wizard will ask for:
+1. Location (current project or global)
+2. Description of the agent
+3. Which tools to enable
+4. Agent mode (`all`, `primary`, or `subagent`)
+
+The generated agent file is a Markdown file with YAML frontmatter, for example:
+
+```markdown
+---
+description: "When to use this agent — generated from your description"
+mode: all
+tools:
+  todowrite: false
+---
+
+You are a code review assistant...
+```
+
+---
+
+## `shob agent list`
+
+Lists all available agents — both built-in native agents and custom agents — sorted with native agents first, then alphabetically by name.
+
+```bash
+shob agent list
+```
+
+### Example output
+
+```
+coder (all)
+  {"rules":[],"permissions":[]}
+reviewer (primary)
+  {"rules":[],"permissions":[]}
+my-custom-agent (subagent)
+  {"rules":[],"permissions":[]}
+```
+
+Each entry shows the agent name, its mode in parentheses, and its permission configuration as JSON.
+
+---
+
+## Using a custom agent
+
+Pass the agent name to `shob run` with `--agent`:
+
+```bash
+shob run --agent reviewer "review the changes in the last commit"
+```

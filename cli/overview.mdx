@@ -1,0 +1,94 @@
+---
+title: "Shob CLI Command Reference"
+sidebarTitle: "Overview"
+description: "Complete reference for the Shob CLI. Lists all top-level commands, global flags, and common usage patterns for the shob binary."
+---
+
+The `shob` binary is your primary interface to the Shob AI agent workspace. You can use it to run agent tasks, manage sessions, start a headless server, configure AI providers, work with MCP servers, and more — all from your terminal.
+
+## Global flags
+
+These flags are accepted by every `shob` command and control logging and runtime behaviour.
+
+| Flag | Alias | Type | Description |
+|---|---|---|---|
+| `--help` | `-h` | boolean | Show help for the current command and exit |
+| `--version` | `-v` | boolean | Print the installed version number and exit |
+| `--print-logs` | — | boolean | Print internal log output to `stderr` |
+| `--log-level` | — | `DEBUG` \| `INFO` \| `WARN` \| `ERROR` | Set the minimum log level (defaults to `INFO`; `DEBUG` on local installs) |
+| `--pure` | — | boolean | Run without loading any external plugins |
+
+## Commands
+
+<CardGroup cols={2}>
+  <Card title="run" href="/cli/run">
+    Send a message to an AI agent and run it interactively or in headless mode
+  </Card>
+  <Card title="serve" href="/cli/serve">
+    Start a headless Shob HTTP server for remote access
+  </Card>
+  <Card title="session" href="/cli/session">
+    List and delete saved Shob sessions
+  </Card>
+  <Card title="mcp" href="/cli/mcp">
+    Add, list, authenticate, and debug Model Context Protocol servers
+  </Card>
+  <Card title="agent" href="/cli/agent">
+    Create and list custom AI agents with specific models and tools
+  </Card>
+  <Card title="providers" href="/cli/providers">
+    Authenticate and manage AI provider credentials
+  </Card>
+  <Card title="github" href="/cli/github">
+    Install and run the GitHub agent integration
+  </Card>
+  <Card title="pr" href="/cli/github#shob-pr">
+    Fetch and check out a GitHub PR branch, then launch shob
+  </Card>
+  <Card title="upgrade" icon="arrow-up">
+    Upgrade Shob to the latest or a specific version
+  </Card>
+  <Card title="models" icon="list">
+    List all available models across configured providers
+  </Card>
+  <Card title="export" icon="arrow-up-right">
+    Export a session to a shareable URL
+  </Card>
+  <Card title="import" icon="arrow-down-left">
+    Import a session from a shareable URL
+  </Card>
+  <Card title="acp" icon="plug">
+    Interact with the Agent Communication Protocol
+  </Card>
+  <Card title="web" icon="globe">
+    Open the Shob web UI
+  </Card>
+  <Card title="stats" icon="chart-bar">
+    Show usage statistics
+  </Card>
+  <Card title="db" icon="database">
+    Inspect or manage the local database
+  </Card>
+  <Card title="generate" icon="wand-magic-sparkles">
+    Generate configuration or scaffolding files
+  </Card>
+</CardGroup>
+
+## Quick-start examples
+
+```bash
+# Run a task with the default agent
+shob run "refactor the authentication module"
+
+# Continue the most recent session
+shob run -c "also add unit tests"
+
+# Start a persistent HTTP server
+shob serve --port 4096
+
+# List all saved sessions
+shob session list
+
+# Authenticate with Anthropic
+shob providers login --provider anthropic
+```

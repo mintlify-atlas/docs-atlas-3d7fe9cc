@@ -1,0 +1,322 @@
+---
+title: "Build Custom Shob Plugins"
+sidebarTitle: "Custom Plugins"
+description: "Extend Shob with custom plugins that add tools, authentication methods, provider integrations, and event hooks using the @shob-ai/plugin package."
+---
+
+Plugins are the primary extension point for Shob. A plugin is a Node.js module that exports a server-side function. When Shob starts, it calls each configured plugin and merges the returned hooks into the runtime. You can use plugins to add custom tools the AI can call, inject environment variables into shell sessions, intercept permission prompts, integrate new auth providers, and much more.
+
+## What plugins can do
+
+A plugin can implement any combination of the following capabilities via the `Hooks` interface:
+
+| Hook | Purpose |
+|---|---|
+| `tool` | Register custom tools the AI agent can invoke during a session |
+| `auth` | Add authentication methods (OAuth or API key) for a provider |
+| `provider` | Register a new model provider or extend an existing one |
+| `event` | React to any Shob event emitted on the bus |
+| `chat.message` | Inspect or log every message sent to the LLM |
+| `chat.params` | Modify temperature, topP, topK, maxOutputTokens, or other parameters before each LLM call |
+| `chat.headers` | Inject extra HTTP headers into LLM requests |
+| `shell.env` | Inject environment variables into every shell command executed by the agent |
+| `permission.ask` | Override the default permission prompt — auto-allow or auto-deny based on custom logic |
+| `tool.execute.before` | Intercept a tool call before it runs and rewrite its arguments |
+| `tool.execute.after` | Post-process a tool's output before it is returned to the model |
+| `tool.definition` | Rewrite a tool's description or parameter schema as seen by the model |
+| `command.execute.before` | Intercept slash-commands before they run |
+| `experimental_workspace.register` | Register a new workspace type (e.g. remote sandboxes) |
+
+## Plugin structure
+
+Every plugin is a module that exports a `server` property conforming to the `Plugin` type:
+
+```typescript
+// my-plugin/index.ts
+import type { Plugin } from "@shob-ai/plugin"
+
+export const server: Plugin = async (input, options) => {
+  // Return a Hooks object
+  return {}
+}
+```
+
+The module may also export an optional `id` string that identifies the plugin in logs and the TUI:
+
+```typescript
+export const id = "my-plugin"
+```
+
+### The `PluginInput` object
+
+Your plugin function receives a `PluginInput` as its first argument:
+
+```typescript
+export type PluginInput = {
+  /** A fully-configured Shob SDK client pointing at the running server */
+  client: ReturnType<typeof createOpencodeClient>
+  /** The current project metadata */
+  project: Project
+  /** The working directory for the current session */
+  directory: string
+  /** The root of the git worktree */
+  worktree: string
+  /** Workspace adapter registry (experimental) */
+  experimental_workspace: {
+    register(type: string, adapter: WorkspaceAdapter): void
+  }
+  /** The base URL of the running Shob server */
+  serverUrl: URL
+  /** A Bun shell instance for running shell commands */
+  $: BunShell
+}
+```
+
+The second argument `options` is an arbitrary `Record<string, unknown>` that comes from the plugin's entry in `shob.json` (see [Plugin options](#plugin-options)).
+
+## Adding custom tools
+
+Use the `tool` helper from `@shob-ai/plugin` to define a tool. The `args` field accepts a [Zod](https://zod.dev/) schema — use `tool.schema` (which is aliased to `zod`) to build it:
+
+```typescript
+import type { Plugin } from "@shob-ai/plugin"
+import { tool } from "@shob-ai/plugin"
+
+export const server: Plugin = async (_input) => {
+  return {
+    tool: {
+      greet: tool({
+        description: "Greet a user by name",
+        args: {
+          name: tool.schema.string().describe("The user's name"),
+        },
+        async execute(args, context) {
+          return `Hello, ${args.name}! Session: ${context.sessionID}`
+        },
+      }),
+    },
+  }
+}
+```
+
+The `execute` function receives the validated `args` and a `ToolContext`:
+
+```typescript
+type ToolContext = {
+  sessionID: string
+  messageID: string
+  agent: string
+  directory: string   // Current project directory
+  worktree: string    // Git worktree root
+  abort: AbortSignal
+  metadata(input: { title?: string; metadata?: Record<string, any> }): void
+  ask(input: AskInput): Promise<void>
+}
+```
+
+A tool can return a plain string, or a richer object with a title, structured metadata, and file attachments:
+
+```typescript
+async execute(args) {
+  return {
+    title: "Search results",
+    output: "Found 3 matches",
+    metadata: { count: 3 },
+  }
+}
+```
+
+## Implementing other hooks
+
+### `shell.env` — inject environment variables
+
+Add environment variables to every shell command executed during a session:
+
+```typescript
+export const server: Plugin = async (_input, options) => {
+  return {
+    "shell.env": async (_input, output) => {
+      output.env["MY_API_KEY"] = String(options?.apiKey ?? "")
+      output.env["LOG_LEVEL"] = "debug"
+    },
+  }
+}
+```
+
+### `permission.ask` — customize permission behaviour
+
+Auto-allow or auto-deny specific permissions without prompting the user:
+
+```typescript
+export const server: Plugin = async () => {
+  return {
+    "permission.ask": async (permission, output) => {
+      // Auto-allow all bash commands in /tmp
+      if (permission.metadata?.path?.startsWith("/tmp")) {
+        output.status = "allow"
+      }
+    },
+  }
+}
+```
+
+### `event` — react to Shob events
+
+Subscribe to any event emitted by the Shob event bus:
+
+```typescript
+export const server: Plugin = async () => {
+  return {
+    event: async ({ event }) => {
+      if (event.type === "session.created") {
+        console.log("New session started:", event.properties.sessionID)
+      }
+    },
+  }
+}
+```
+
+### `chat.message` — inspect the message lifecycle
+
+Called whenever a new user message is received by the server:
+
+```typescript
+export const server: Plugin = async () => {
+  return {
+    "chat.message": async (input, output) => {
+      console.log(`[${input.sessionID}] New message:`, output.parts)
+    },
+  }
+}
+```
+
+## Minimal working plugin
+
+Here is a complete, minimal plugin you can use as a starting point:
+
+```typescript
+// my-shob-plugin/index.ts
+import type { Plugin } from "@shob-ai/plugin"
+import { tool } from "@shob-ai/plugin"
+
+export const id = "my-shob-plugin"
+
+export const server: Plugin = async (_input, options) => {
+  const greeting = String(options?.greeting ?? "Hello")
+
+  return {
+    tool: {
+      say_hello: tool({
+        description: "Say hello to someone",
+        args: {
+          name: tool.schema.string().describe("Name of the person to greet"),
+        },
+        async execute({ name }) {
+          return `${greeting}, ${name}!`
+        },
+      }),
+    },
+
+    "shell.env": async (_input, output) => {
+      output.env["PLUGIN_ACTIVE"] = "1"
+    },
+  }
+}
+```
+
+## Registering a plugin
+
+### Via `shob plugin` (recommended)
+
+Use the `shob plugin` command (alias: `shob plug`) to install an npm package and automatically update your `shob.json`:
+
+```bash
+# Install locally (updates the project's shob.json)
+shob plugin my-shob-plugin
+
+# Install globally (updates the global config)
+shob plugin my-shob-plugin --global
+
+# Replace an already-installed version
+shob plugin my-shob-plugin --force
+```
+
+### Manually in `shob.json`
+
+Add the package name to the `plugin` array in your `shob.json`:
+
+```json
+{
+  "plugin": [
+    "my-shob-plugin"
+  ]
+}
+```
+
+### Plugin options
+
+Pass options to a plugin by replacing the string entry with a two-element tuple:
+
+```json
+{
+  "plugin": [
+    ["my-shob-plugin", { "greeting": "Howdy", "apiKey": "secret" }]
+  ]
+}
+```
+
+Your plugin receives these options as the second argument:
+
+```typescript
+export const server: Plugin = async (_input, options) => {
+  console.log(options?.greeting) // "Howdy"
+}
+```
+
+### Loading a local plugin
+
+During development you can load a plugin directly from a local file path. Place a `.ts` or `.js` file in a `plugin/` or `plugins/` directory at your project root — Shob automatically discovers and loads files in those directories.
+
+Alternatively, reference the file explicitly in `shob.json`:
+
+```json
+{
+  "plugin": [
+    "./plugin/my-local-plugin.ts"
+  ]
+}
+```
+
+## Publishing a plugin to npm
+
+A Shob plugin is a standard npm package. The minimum `package.json` for a server-side plugin looks like this:
+
+```json
+{
+  "name": "my-shob-plugin",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./server": "./dist/index.js"
+  },
+  "peerDependencies": {
+    "@shob-ai/plugin": "*"
+  }
+}
+```
+
+<Tip>
+Export your server entrypoint under the `"./server"` export condition. Shob uses this to distinguish server-side plugins from TUI plugins when both are provided by the same package.
+</Tip>
+
+Once published, users can install your plugin with a single command:
+
+```bash
+shob plugin my-shob-plugin
+```
+
+<Warning>
+Plugins run with the same privileges as the Shob server process. Only install plugins from authors you trust, and review any plugin code before loading it in production environments.
+</Warning>

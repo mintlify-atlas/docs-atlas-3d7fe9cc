@@ -1,0 +1,202 @@
+---
+title: "AI Providers in Shob: Connecting Language Models"
+sidebarTitle: "Providers"
+description: "Shob supports multiple AI providers including Anthropic, OpenAI, and OpenAI-compatible APIs. Learn how to authenticate and configure providers."
+---
+
+A **provider** in Shob is a connection to an AI model API. Shob uses providers to send messages, stream responses, and call tools on your behalf. Out of the box, Shob supports a broad set of cloud providers — Anthropic, OpenAI, Google, GitHub Copilot, OpenRouter, Vercel AI Gateway, and many more — as well as any API that is compatible with the OpenAI HTTP interface.
+
+## Supported Providers
+
+The full provider list is fetched from [models.dev](https://models.dev) at runtime, so it stays current with new releases. The providers that appear highest in the login selector (in priority order) are:
+
+| Provider | ID | Notes |
+|----------|----|-------|
+| Shob | `shob` | Shob's own hosted inference — recommended starting point |
+| OpenAI | `openai` | ChatGPT Plus/Pro subscriptions or API key |
+| GitHub Copilot | `github-copilot` | Copilot subscription via OAuth |
+| Google | `google` | Gemini models |
+| Anthropic | `anthropic` | Claude models |
+| OpenRouter | `openrouter` | Aggregates many providers behind one API key |
+| Vercel AI Gateway | `vercel` | Vercel's model routing layer |
+
+You can also connect to **any OpenAI-compatible endpoint** — local models via Ollama, LM Studio, llama.cpp, or hosted services like Together AI or Groq — by configuring a custom provider in `shob.json`.
+
+## Authentication
+
+Shob supports two authentication methods: **API keys** and **OAuth**. Which method is available depends on the provider.
+
+### Interactive login
+
+The recommended way to authenticate is with the `shob providers login` command. It walks you through provider selection, authentication method, and credential storage interactively:
+
+```bash
+shob providers login
+```
+
+To skip the interactive provider picker and authenticate a specific provider directly:
+
+```bash
+shob providers login --provider anthropic
+shob providers login --provider openai
+shob providers login --provider github-copilot
+```
+
+Use `--method` to skip the authentication method picker when a provider supports multiple methods:
+
+```bash
+shob providers login --provider openai --method "API key"
+```
+
+Credentials are stored in Shob's data directory (`auth.json`). You can inspect the stored path by running `shob providers list`.
+
+### Environment variables
+
+Shob automatically detects API keys set as environment variables. The variable names follow each provider's standard convention:
+
+```bash
+# Anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# OpenAI
+export OPENAI_API_KEY=sk-...
+```
+
+When an environment variable is detected, Shob uses it directly without requiring an interactive login. Run `shob providers list` to confirm which providers are active via environment variables.
+
+<Note>
+Environment variables take effect immediately and do not need to be stored with `shob providers login`. They are resolved at startup alongside any stored credentials.
+</Note>
+
+## Listing and Removing Credentials
+
+<CodeGroup>
+
+```bash List all credentials
+shob providers list
+```
+
+```bash Remove a credential
+shob providers logout
+```
+
+</CodeGroup>
+
+`shob providers list` prints two sections:
+
+1. **Stored credentials** — from `auth.json`, showing each provider name and auth type (`api` or `oauth`)
+2. **Environment variables** — any provider API keys detected in the current environment
+
+## Selecting a Model
+
+Models are identified by a `provider/model` string. Pass it with `--model` (or `-m`) on any command that runs the agent:
+
+```bash
+shob run --model anthropic/claude-sonnet-4-5 "Refactor this function"
+shob run --model openai/gpt-4o "Explain this codebase"
+shob run --model openrouter/meta-llama/llama-3-70b-instruct "Quick summary"
+```
+
+You can also set a default model globally in `shob.json` so you do not have to specify it on every run:
+
+```json shob.json
+{
+  "model": "anthropic/claude-sonnet-4-5"
+}
+```
+
+A separate `small_model` can be configured for lightweight internal tasks like title generation:
+
+```json shob.json
+{
+  "model": "anthropic/claude-sonnet-4-5",
+  "small_model": "anthropic/claude-haiku-3-5"
+}
+```
+
+### Model variants
+
+Some providers expose reasoning-effort variants (e.g., `thinking`, `high`, `max`, `minimal`). Pass the variant with `--variant`:
+
+```bash
+shob run --model anthropic/claude-sonnet-4-5 --variant high "Hard algorithmic problem"
+```
+
+Or set it per-agent in `shob.json`:
+
+```json shob.json
+{
+  "agent": {
+    "build": {
+      "model": "anthropic/claude-sonnet-4-5",
+      "variant": "high"
+    }
+  }
+}
+```
+
+## Custom and OpenAI-Compatible Providers
+
+To connect a custom or self-hosted endpoint, add a provider block to `shob.json`. Custom providers use the `@ai-sdk/openai-compatible` adapter by default:
+
+```json shob.json
+{
+  "provider": {
+    "my-local-llm": {
+      "name": "Local LLM",
+      "api": "@ai-sdk/openai-compatible",
+      "env": ["LOCAL_LLM_API_KEY"],
+      "options": {
+        "baseURL": "http://localhost:11434/v1",
+        "apiKey": "ollama"
+      },
+      "models": {
+        "llama3": {
+          "name": "Llama 3",
+          "id": "llama3"
+        }
+      }
+    }
+  }
+}
+```
+
+Once configured, you can use the custom provider and model the same way as any built-in one:
+
+```bash
+shob run --model my-local-llm/llama3 "Write a README"
+```
+
+### Enabling and disabling providers
+
+By default, all providers from models.dev are available. You can restrict which providers appear in Shob using `enabled_providers` (allowlist) or `disabled_providers` (blocklist):
+
+```json shob.json
+{
+  "enabled_providers": ["anthropic", "openai"],
+  "disabled_providers": ["openrouter"]
+}
+```
+
+## Per-Agent Model Configuration
+
+You can assign a specific model to an individual agent without changing the global default:
+
+```json shob.json
+{
+  "agent": {
+    "explore": {
+      "model": "anthropic/claude-haiku-3-5"
+    },
+    "build": {
+      "model": "anthropic/claude-sonnet-4-5"
+    }
+  }
+}
+```
+
+This is useful for cost optimisation: use a fast, cheap model for lightweight subagents and a powerful model for the primary agent.
+
+## Further Reading
+
+See [Provider Configuration](/configuration/providers) for the full provider config schema, including timeout settings, model whitelists/blacklists, and custom header configuration.

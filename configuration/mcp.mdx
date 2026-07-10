@@ -1,0 +1,299 @@
+---
+title: "Configure MCP Servers in Shob"
+sidebarTitle: "MCP Servers"
+description: "Add local and remote Model Context Protocol servers to Shob via shob.json or the interactive CLI. Supports stdio, local, and remote server types."
+---
+
+Model Context Protocol (MCP) is an open standard that lets AI agents connect to external tools, data sources, and services through a standardised interface. Shob can connect to both **local** MCP servers (programs you run on your machine via a shell command) and **remote** MCP servers (hosted HTTP/SSE endpoints). All MCP servers are configured under the `mcp` key in `shob.json`.
+
+## The `mcp` config block
+
+Each key inside `mcp` is a **server name** you choose — it appears in logs and in the `shob mcp list` output. The value is a server configuration object whose shape depends on whether it is `local` or `remote`:
+
+```json
+{
+  "mcp": {
+    "<server-name>": {
+      "type": "local" | "remote",
+      ...
+    }
+  }
+}
+```
+
+---
+
+## Local servers
+
+A local server is launched by Shob as a child process and communicates over stdio. Use this for any MCP server you install as an npm package or run as a binary.
+
+### Config fields
+
+<ParamField path="type" type='"local"' required>
+  Must be `"local"` for stdio-based servers.
+</ParamField>
+
+<ParamField path="command" type="string[]" required>
+  The command and its arguments to launch the server, e.g. `["npx", "-y", "@modelcontextprotocol/server-filesystem", "/tmp"]`.
+</ParamField>
+
+<ParamField path="environment" type="object">
+  A map of extra environment variables to inject when the server process starts.
+</ParamField>
+
+<ParamField path="enabled" type="boolean">
+  Set to `false` to keep the server defined in config but prevent Shob from starting it automatically (default: `true`).
+</ParamField>
+
+<ParamField path="timeout" type="number">
+  Timeout in milliseconds for individual MCP requests to this server (default: `5000`).
+</ParamField>
+
+### Example
+
+```json
+{
+  "mcp": {
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"],
+      "environment": {
+        "NODE_ENV": "production"
+      },
+      "timeout": 10000
+    },
+    "github": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."
+      }
+    }
+  }
+}
+```
+
+---
+
+## Remote servers
+
+A remote server is accessed over HTTP (streaming via Server-Sent Events or Streamable HTTP). Shob connects to the URL you provide and optionally handles OAuth authentication automatically.
+
+### Config fields
+
+<ParamField path="type" type='"remote"' required>
+  Must be `"remote"` for HTTP-based servers.
+</ParamField>
+
+<ParamField path="url" type="string" required>
+  The full URL of the remote MCP endpoint, e.g. `https://mcp.example.com/sse`.
+</ParamField>
+
+<ParamField path="enabled" type="boolean">
+  Set to `false` to disable this server without removing it from the config.
+</ParamField>
+
+<ParamField path="headers" type="object">
+  Extra HTTP headers to include with every request (useful for static API-key auth schemes that don't use OAuth).
+</ParamField>
+
+<ParamField path="oauth" type="object | false">
+  OAuth configuration for this server. Omit or leave as an empty object `{}` to enable auto-detection (Shob will attempt dynamic client registration per RFC 7591). Set to `false` to disable OAuth entirely.
+</ParamField>
+
+<ParamField path="timeout" type="number">
+  Timeout in milliseconds for MCP requests (default: `5000`).
+</ParamField>
+
+### Example
+
+```json
+{
+  "mcp": {
+    "remote-tools": {
+      "type": "remote",
+      "url": "https://mcp.example.com/sse",
+      "enabled": true
+    }
+  }
+}
+```
+
+---
+
+## OAuth for remote servers
+
+Many remote MCP servers require OAuth 2.0 authentication. Shob supports the full OAuth flow — including dynamic client registration (RFC 7591) when no client ID is pre-configured.
+
+### OAuth config fields
+
+<ParamField path="oauth.clientId" type="string">
+  OAuth client ID. If not provided, Shob attempts dynamic client registration with the server.
+</ParamField>
+
+<ParamField path="oauth.clientSecret" type="string">
+  OAuth client secret, if required by the authorisation server.
+</ParamField>
+
+<ParamField path="oauth.scope" type="string">
+  Space-separated OAuth scopes to request during authorisation.
+</ParamField>
+
+<ParamField path="oauth.redirectUri" type="string">
+  OAuth redirect URI. Defaults to `http://127.0.0.1:19876/mcp/oauth/callback`.
+</ParamField>
+
+### OAuth example
+
+```json
+{
+  "mcp": {
+    "my-oauth-server": {
+      "type": "remote",
+      "url": "https://mcp.example.com/sse",
+      "oauth": {
+        "clientId": "my-client-id",
+        "clientSecret": "my-client-secret",
+        "scope": "read write"
+      }
+    },
+
+    // Auto-detection: Shob tries dynamic client registration
+    "auto-oauth-server": {
+      "type": "remote",
+      "url": "https://other.example.com/mcp",
+      "oauth": {}
+    },
+
+    // Explicitly disable OAuth for a server that uses header-based auth instead
+    "header-auth-server": {
+      "type": "remote",
+      "url": "https://api.example.com/mcp",
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer my-static-token"
+      }
+    }
+  }
+}
+```
+
+---
+
+## Complete example
+
+```json
+{
+  "$schema": "https://shob.ai/config.json",
+  "mcp": {
+    // Local stdio server — filesystem access
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "/home/user/projects"],
+      "timeout": 10000
+    },
+
+    // Local stdio server — with injected environment variables
+    "github": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_..."
+      }
+    },
+
+    // Remote server — no auth required
+    "public-tools": {
+      "type": "remote",
+      "url": "https://mcp.example.com/sse"
+    },
+
+    // Remote server — OAuth with pre-registered client
+    "enterprise-tools": {
+      "type": "remote",
+      "url": "https://enterprise.example.com/mcp",
+      "oauth": {
+        "clientId": "abc123",
+        "clientSecret": "secret",
+        "scope": "tools:read tools:execute"
+      }
+    },
+
+    // Remote server — OAuth auto-detection
+    "saas-tools": {
+      "type": "remote",
+      "url": "https://saas.example.com/mcp",
+      "oauth": {}
+    },
+
+    // Defined but currently disabled
+    "staging-tools": {
+      "type": "remote",
+      "url": "https://staging.example.com/mcp",
+      "enabled": false
+    }
+  }
+}
+```
+
+---
+
+## Managing MCP servers with the CLI
+
+You can add, list, and authenticate MCP servers interactively without editing `shob.json` by hand.
+
+### Add a server interactively
+
+```bash
+shob mcp add
+```
+
+The wizard asks you to choose a scope (current project or global), a server name, a type (`local` or `remote`), and the command or URL. For remote servers it also offers to configure OAuth. The result is written directly to the appropriate `shob.json` file.
+
+### List configured servers
+
+```bash
+shob mcp list
+```
+
+Shows all configured MCP servers along with their current connection status (`connected`, `disabled`, `needs authentication`, `failed`, etc.) and the command or URL for each.
+
+### Authenticate with an OAuth server
+
+```bash
+shob mcp auth
+# or target a specific server by name
+shob mcp auth my-oauth-server
+```
+
+Opens the OAuth authorisation flow in your browser. If your browser cannot be opened automatically, Shob prints the URL for you to visit manually. Credentials are stored locally and reused for future sessions.
+
+### View OAuth status
+
+```bash
+shob mcp auth list
+```
+
+Lists all OAuth-capable remote servers and their authentication status (`authenticated`, `expired`, or `not authenticated`).
+
+### Remove stored credentials
+
+```bash
+shob mcp logout
+# or for a specific server
+shob mcp logout my-oauth-server
+```
+
+### Debug an OAuth connection
+
+```bash
+shob mcp debug my-oauth-server
+```
+
+Prints connection details, stored token info, and runs a live HTTP test against the server — useful for diagnosing authentication failures.
+
+---
+
+<Note>
+  MCP servers configured in the **global** config are available in every project. Servers in a **project** config (`./shob.json` or `./.shob/shob.json`) are only active inside that project.
+</Note>

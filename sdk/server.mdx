@@ -1,0 +1,229 @@
+---
+title: "createOpencodeServer: Spawn a Shob Server Process"
+sidebarTitle: "Server"
+description: "createOpencodeServer spawns and manages a Shob server child process from Node.js. Returns the server URL and a close() function."
+---
+
+`createOpencodeServer` launches `shob serve` as a managed child process from within your Node.js or Bun application, waits until the server is ready to accept connections, and returns the server URL alongside a `close()` function to tear it down. This lets you embed a Shob server in automated pipelines, test harnesses, or any programmatic workflow without running the CLI yourself.
+
+## Installation
+
+```bash
+npm install @shob-ai/sdk
+```
+
+Import from the dedicated server sub-path if you don't need the client:
+
+```typescript
+import { createOpencodeServer } from "@shob-ai/sdk/server"
+```
+
+---
+
+## `createOpencodeServer(options?)`
+
+Spawns `shob serve` and waits for the "server listening" line on stdout before resolving.
+
+### Options
+
+<ParamField body="hostname" type="string" default="127.0.0.1">
+  The hostname the server binds to. Passed as `--hostname` to `shob serve`.
+</ParamField>
+
+<ParamField body="port" type="number" default="4096">
+  The port the server listens on. Passed as `--port` to `shob serve`.
+</ParamField>
+
+<ParamField body="timeout" type="number" default="5000">
+  Maximum time in milliseconds to wait for the server to start. If the server has not printed its "listening" line within this window, `createOpencodeServer` kills the process and rejects with a timeout error.
+</ParamField>
+
+<ParamField body="signal" type="AbortSignal">
+  An `AbortSignal` that, when triggered, stops the server process and rejects the startup promise with the signal's reason. Useful for cancelling server startup in CI or test runners.
+</ParamField>
+
+<ParamField body="config" type="Config">
+  A Shob configuration object. The value is serialised as JSON and injected into the child process via the `SHOB_CONFIG_CONTENT` environment variable. Any key set here overrides the corresponding key in `shob.json`. The `logLevel` field is additionally forwarded as `--log-level` CLI flag.
+</ParamField>
+
+### Return value
+
+<ResponseField name="url" type="string">
+  The full base URL of the started server, e.g. `"http://127.0.0.1:4096"`. Pass this directly to `createOpencodeClient`.
+</ResponseField>
+
+<ResponseField name="close" type="() => void">
+  Stops the server child process and releases any abort-signal listeners. Safe to call multiple times.
+</ResponseField>
+
+### Example
+
+```typescript
+import { createOpencodeServer } from "@shob-ai/sdk/server"
+import { createOpencodeClient } from "@shob-ai/sdk/client"
+
+const server = await createOpencodeServer({
+  hostname: "127.0.0.1",
+  port: 4096,
+  timeout: 10_000,
+  config: {
+    logLevel: "warn",
+  },
+})
+
+console.log("Server started at", server.url)
+
+const client = createOpencodeClient({ baseUrl: server.url })
+
+// ... do work ...
+
+server.close()
+```
+
+### Error handling
+
+If the server process exits before printing its "listening" line, the promise rejects with a message containing the exit code and any captured stdout/stderr output:
+
+```
+Error: Server exited with code 1
+Server output: Error: port 4096 already in use
+```
+
+If the timeout fires first:
+
+```
+Error: Timeout waiting for server to start after 5000ms
+```
+
+If an `AbortSignal` is triggered:
+
+```
+Error: The operation was aborted.
+```
+
+---
+
+## `createOpencodeTui(options?)`
+
+Launches the Shob interactive TUI as a child process with `stdio: "inherit"`, so it takes over the current terminal. Returns a `close()` handle.
+
+### Options
+
+<ParamField body="project" type="string">
+  Open the TUI in the context of a specific project path. Passed as `--project`.
+</ParamField>
+
+<ParamField body="model" type="string">
+  Pre-select a model in `providerID/modelID` format. Passed as `--model`.
+</ParamField>
+
+<ParamField body="session" type="string">
+  Open a specific session by ID. Passed as `--session`.
+</ParamField>
+
+<ParamField body="agent" type="string">
+  Pre-select a specific agent. Passed as `--agent`.
+</ParamField>
+
+<ParamField body="signal" type="AbortSignal">
+  An `AbortSignal` that stops the TUI process when triggered.
+</ParamField>
+
+<ParamField body="config" type="Config">
+  A Shob configuration object injected via `SHOB_CONFIG_CONTENT`.
+</ParamField>
+
+### Return value
+
+<ResponseField name="close" type="() => void">
+  Stops the TUI child process.
+</ResponseField>
+
+### Example
+
+```typescript
+import { createOpencodeTui } from "@shob-ai/sdk/server"
+
+const tui = createOpencodeTui({
+  project: "/home/user/my-project",
+  model: "anthropic/claude-sonnet-4-5",
+})
+
+// The TUI now owns the terminal. Call close() to end it.
+process.on("SIGINT", () => tui.close())
+```
+
+---
+
+## `createOpencode(options?)`
+
+A convenience function exported from the root `@shob-ai/sdk` that calls both `createOpencodeServer` and `createOpencodeClient` in sequence, returning them together. It accepts the same options as `createOpencodeServer`.
+
+### Return value
+
+<ResponseField name="server" type="{ url: string; close(): void }">
+  The server handle returned by `createOpencodeServer`.
+</ResponseField>
+
+<ResponseField name="client" type="OpencodeClient">
+  A ready-to-use `OpencodeClient` already pointed at `server.url`.
+</ResponseField>
+
+### Example
+
+```typescript
+import { createOpencode } from "@shob-ai/sdk"
+
+const { client, server } = await createOpencode({
+  port: 4096,
+  timeout: 10_000,
+  config: { logLevel: "warn" },
+})
+
+try {
+  // Create a session
+  const { data: session } = await client.session.create()
+  const sessionID = session!.id
+
+  // Send a prompt
+  await client.session.prompt({
+    path: { id: sessionID },
+    body: {
+      content: [{ type: "text", text: "Summarise the README." }],
+      providerID: "anthropic",
+      modelID: "claude-sonnet-4-5",
+    },
+  })
+
+  // Read back the messages
+  const { data: messages } = await client.session.messages({
+    path: { id: sessionID },
+  })
+  console.log(messages)
+} finally {
+  server.close()
+}
+```
+
+---
+
+## Using an AbortSignal for cleanup
+
+The `signal` option integrates cleanly with Node.js's built-in `AbortController` for timeout-based or external cancellation:
+
+```typescript
+import { createOpencodeServer } from "@shob-ai/sdk/server"
+
+const controller = new AbortController()
+
+// Cancel startup after 3 seconds if not ready
+setTimeout(() => controller.abort(new Error("startup timed out")), 3_000)
+
+try {
+  const server = await createOpencodeServer({ signal: controller.signal })
+  console.log("Ready at", server.url)
+  server.close()
+} catch (err) {
+  console.error("Failed to start server:", err)
+}
+```

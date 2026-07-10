@@ -1,0 +1,83 @@
+---
+title: "shob serve — Start a Headless Shob HTTP Server"
+sidebarTitle: "serve"
+description: "shob serve starts Shob as a background HTTP server. Key flags: --hostname, --port, --password."
+---
+
+`shob serve` starts Shob as a persistent, headless HTTP server. Once running, other processes — including `shob run --attach` from a different terminal, a remote machine, or a CI pipeline — can connect to it and dispatch agent tasks without spinning up a new process each time. The server stays alive until you stop it.
+
+## Usage
+
+```bash
+shob serve
+```
+
+## Flags
+
+<ParamField body="--hostname" type="string" default="127.0.0.1">
+  The hostname (or IP address) the server binds to. Set to `0.0.0.0` to accept connections from all network interfaces. When `--mdns` is enabled and no hostname is explicitly configured, Shob automatically defaults to `0.0.0.0`.
+</ParamField>
+
+<ParamField body="--port" type="number" default="0">
+  The TCP port to listen on. When left at the default (`0`), the operating system assigns a random available port. Set an explicit port (e.g. `4096`) for stable, predictable URLs.
+</ParamField>
+
+<ParamField body="--mdns" type="boolean" default="false">
+  Enable mDNS service discovery so other devices on the local network can find the server automatically. Defaults `--hostname` to `0.0.0.0` when enabled.
+</ParamField>
+
+<ParamField body="--mdns-domain" type="string" default="shob.local">
+  Custom domain name to advertise via mDNS. Only relevant when `--mdns` is enabled.
+</ParamField>
+
+<ParamField body="--cors" type="string[]">
+  Additional origin domains to allow for Cross-Origin Resource Sharing (CORS). Can be specified multiple times. This is useful when accessing the server from a browser-based client hosted on a different origin.
+</ParamField>
+
+## Password protection
+
+The server reads the `SHOB_SERVER_PASSWORD` environment variable to enforce HTTP Basic Authentication on all endpoints. If this variable is not set when `shob serve` starts, it prints a warning:
+
+```
+Warning: SHOB_SERVER_PASSWORD is not set; server is unsecured.
+```
+
+When `SHOB_SERVER_PASSWORD` is configured, clients must supply the password via `--password` (or the `SHOB_SERVER_PASSWORD` env var on the client side) when connecting with `shob run --attach`.
+
+## Server output
+
+After binding successfully, the server prints its address:
+
+```
+shob server listening on http://127.0.0.1:4096
+```
+
+The process then blocks indefinitely. Use `Ctrl+C` (or your process manager) to stop it.
+
+## Example
+
+**Start a server on a fixed port**
+
+```bash
+SHOB_SERVER_PASSWORD=mysecret shob serve --port 4096
+```
+
+**Connect from another terminal**
+
+```bash
+shob run --attach http://localhost:4096 --password mysecret "summarise the recent git commits"
+```
+
+**Expose to the local network with mDNS**
+
+```bash
+shob serve --port 4096 --mdns
+```
+
+<Warning>
+  Always set `SHOB_SERVER_PASSWORD` before exposing the server to any network beyond `localhost`. Without a password, any process that can reach the server can execute agent tasks in your environment.
+</Warning>
+
+<Note>
+  Network options (`--hostname`, `--port`, `--mdns`, `--mdns-domain`, `--cors`) can also be persisted in your global Shob configuration file so you don't need to repeat them on every invocation.
+</Note>

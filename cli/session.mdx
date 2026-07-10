@@ -1,0 +1,97 @@
+---
+title: "shob session — Manage Shob Sessions"
+sidebarTitle: "session"
+description: "shob session lists and deletes Shob sessions. Subcommands: list, delete."
+---
+
+`shob session` lets you inspect and clean up the sessions that Shob creates whenever you run an agent task. Each session stores the full conversation history, the working directory, and metadata such as the title and timestamps. Use `shob session list` to review past sessions and `shob session delete` to remove ones you no longer need.
+
+## Usage
+
+```bash
+shob session <subcommand>
+```
+
+---
+
+## `shob session list`
+
+Lists all top-level sessions in reverse-chronological order (most recently updated first).
+
+```bash
+shob session list [flags]
+```
+
+### Flags
+
+<ParamField body="--max-count" type="number">
+  Alias: `-n`
+
+  Limit the output to the N most recent sessions. When omitted, all sessions are shown and the output is automatically piped through a pager (`less`) on TTY environments.
+</ParamField>
+
+<ParamField body="--format" type="string" default="table">
+  Output format. Accepted values:
+
+  - `table` — human-readable aligned table (default)
+  - `json` — JSON array containing `id`, `title`, `updated`, `created`, `projectId`, and `directory` for each session
+</ParamField>
+
+### Example output
+
+```
+Session ID              Title                      Updated
+────────────────────────────────────────────────────────────────────
+ses_01j9k3p2q8r         Refactor auth module       10:42 AM
+ses_01j9k1xm4tz         Add unit tests             Yesterday 3:15 PM
+ses_01j9jy8n2wk         Fix database migration     Jul 14 9:02 AM
+```
+
+### JSON output
+
+```bash
+shob session list --format json
+```
+
+```json
+[
+  {
+    "id": "ses_01j9k3p2q8r",
+    "title": "Refactor auth module",
+    "updated": 1721123345678,
+    "created": 1721120000000,
+    "projectId": "proj_xyz",
+    "directory": "/home/user/myproject"
+  }
+]
+```
+
+---
+
+## `shob session delete`
+
+Permanently deletes a single session identified by its ID.
+
+```bash
+shob session delete <sessionID>
+```
+
+### Arguments
+
+<ParamField body="sessionID" type="string" required>
+  The ID of the session to delete. Copy this from the first column of `shob session list`. Deleting a session cannot be undone.
+</ParamField>
+
+### Example
+
+```bash
+# List sessions to find the ID
+shob session list
+
+# Delete a specific session
+shob session delete ses_01j9k3p2q8r
+```
+
+<Note>
+  If the session ID does not exist, Shob prints an error and exits with a non-zero status code. No partial deletion occurs.
+</Note>

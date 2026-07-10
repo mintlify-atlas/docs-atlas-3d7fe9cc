@@ -1,0 +1,133 @@
+{
+  "projectType": "saas",
+  "projectName": "Shob",
+  "projectDescription": "Shob is an AI agent workspace and CLI tool that lets developers run parallel AI-powered coding and automation sessions from a single environment, with support for multiple AI providers, MCP servers, custom agents, and a plugin system.",
+  "theme": "luma",
+  "primaryColor": "#06ab5b",
+  "lightColor": "#7aeab4",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/sessions",
+              "concepts/agents",
+              "concepts/permissions",
+              "concepts/providers"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/overview",
+              "configuration/providers",
+              "configuration/mcp",
+              "configuration/agents"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/parallel-sessions",
+              "features/git-integration",
+              "features/skills",
+              "features/desktop-app"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/github-agent",
+              "guides/custom-plugins",
+              "guides/headless-server"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "Commands",
+            "pages": [
+              "cli/overview",
+              "cli/run",
+              "cli/serve",
+              "cli/session",
+              "cli/mcp",
+              "cli/agent",
+              "cli/providers",
+              "cli/github"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDK & Plugins",
+        "groups": [
+          {
+            "group": "JavaScript SDK",
+            "pages": [
+              "sdk/overview",
+              "sdk/client",
+              "sdk/server"
+            ]
+          },
+          {
+            "group": "Plugin Development",
+            "pages": [
+              "plugins/overview",
+              "plugins/hooks",
+              "plugins/tools"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Parallel AI agent sessions — run multiple AI-powered workflows simultaneously within the same project",
+    "Smart permission system — review and approve commands, file access, and code changes before they execute",
+    "Deep Git integration — agents understand repository state, active branch, and local changes",
+    "Subagent delegation — break large tasks into pieces and delegate to specialized subagents",
+    "Multi-provider support — connect Anthropic, OpenAI, and other AI providers",
+    "MCP (Model Context Protocol) support — add local and remote MCP tool servers",
+    "Custom agents — define specialized agents with specific tools, prompts, and permissions",
+    "Plugin system — extend Shob with custom tools, auth hooks, and provider integrations",
+    "Headless server mode — run Shob as a background HTTP server for programmatic access",
+    "JavaScript SDK — programmatically control Shob sessions and automation workflows",
+    "Desktop app — full Electron-based GUI with file tree, terminal, and diff viewer",
+    "Skills — reusable agent workflows for brainstorming, research, UI/UX, and more",
+    "GitHub agent — automated PR and issue handling via GitHub Actions or CLI",
+    "Session sharing — share sessions via a public share URL"
+  ],
+  "publicApiSurface": [
+    "shob run [message] — run a one-shot AI agent with a message",
+    "shob serve — start a headless Shob HTTP server",
+    "shob session list / delete — manage sessions",
+    "shob mcp add / list / auth / logout / debug — manage MCP servers",
+    "shob agent create / list — manage custom agents",
+    "shob providers auth / list — authenticate AI providers",
+    "shob github install / run — GitHub agent integration",
+    "shob pr <number> — fetch and run Shob on a GitHub PR",
+    "createOpencodeClient(config) — create an SDK client connected to a Shob server",
+    "createOpencodeServer(options) — spawn a Shob server process programmatically",
+    "createOpencode(options) — convenience function to create both server and client",
+    "createOpencodeTui(options) — launch Shob TUI process programmatically",
+    "Plugin Hooks: event, config, tool, auth, provider, chat.message, chat.params, permission.ask, shell.env, tool.execute.before, tool.execute.after",
+    "Agent.Info schema — name, description, mode, tools, model, prompt, permission, steps",
+    "Config schema — providers, mcp, agents, plugins, logLevel, model, keybindings"
+  ]
+}

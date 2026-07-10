@@ -1,0 +1,149 @@
+---
+title: "Shob Desktop App: GUI Workspace for AI Development"
+sidebarTitle: "Desktop App"
+description: "The Shob desktop app is an Electron-based GUI with a file tree, integrated terminal, diff viewer, and multi-tab session management for AI-assisted development."
+---
+
+The Shob desktop app brings the full power of the Shob agent system into a graphical workspace. Built on Electron with a SolidJS frontend, it provides a multi-tab session manager, live file tree, integrated xterm terminal panel, side-by-side diff viewer, and a skill store — everything you need to run, review, and manage AI-powered development sessions without leaving a single window.
+
+## Platforms
+
+The desktop app ships as a native installer for all three major platforms:
+
+<CardGroup cols={3}>
+  <Card title="macOS" icon="apple">
+    Available as a `.dmg` and `.zip`. Uses the native macOS titlebar (hidden frame with traffic lights repositioned) and dock icon.
+  </Card>
+  <Card title="Windows" icon="windows">
+    Available as an NSIS installer (`.exe`). Uses a frameless window with a custom titlebar overlay that respects the system light/dark theme.
+  </Card>
+  <Card title="Linux" icon="linux">
+    Available as an `.AppImage` and `.deb`. Registers as a `Development` application with system tray support.
+  </Card>
+</CardGroup>
+
+## What the Desktop App Adds Over the CLI
+
+The CLI is the foundation — the desktop app layers visual tooling on top of it. The embedded Shob server starts automatically in the background when the app launches, so there is nothing to configure before opening your first project.
+
+| Feature | CLI | Desktop App |
+|---|---|---|
+| AI agent sessions | ✅ | ✅ |
+| Parallel sessions | Multiple terminals | Tabs in one window |
+| File tree with live updates | ❌ | ✅ |
+| Side-by-side diff viewer | ❌ | ✅ |
+| Integrated xterm terminal | ❌ | ✅ |
+| Permission approval dialogs | Text prompts | GUI dialogs |
+| Model/provider selection | Flags | Settings UI |
+| Skill store (browse & install) | ❌ | ✅ |
+| Theming | ❌ | 35+ built-in themes |
+| System tray icon | ❌ | ✅ |
+| Auto-updates | ❌ | ✅ |
+
+## Key UI Features
+
+### Multi-Tab Session Management
+
+Each tab in the desktop app represents an independent Shob session. Open as many tabs as you need and switch between them instantly — each tab preserves its own conversation history, context, and diff state. Tabs can be reordered by dragging.
+
+Opening a new tab presents a project selector. You can open a directory, reopen a recent project, or browse for a new one. Once a project is open, new sessions in that project are created from the same tab bar.
+
+### Integrated Terminal Panel
+
+The bottom panel contains a full xterm-based terminal with support for multiple named terminal windows per project. Each terminal can use a different shell (detected from your system), and terminal state is persisted so you can reopen the app and pick up exactly where you left off.
+
+Terminal windows within a project can be reordered, renamed, and deleted. The layout (split, sizes) is also saved per-project.
+
+### File Tree with Live Updates
+
+The left sidebar displays the file tree for the active project. The tree updates in real time as the agent creates, modifies, and deletes files — powered by a `chokidar` filesystem watcher running in the Electron main process. Changes in `node_modules`, `dist`, `.next`, and other build output directories are automatically filtered out.
+
+Files with uncommitted git changes are highlighted in the tree. Clicking a file opens a preview of its contents, and clicking a changed file can take you directly to its diff view.
+
+### Diff Viewer for Reviewing Agent Changes
+
+The **Review** tab (accessible per-session) shows a unified, syntax-highlighted diff of every file the agent has changed during the session. The diff is computed against the snapshot taken at the session start (or the last revert point), so you always see the full cumulative impact of the agent's work.
+
+From the diff viewer you can:
+- Browse all changed files
+- See line-by-line additions (green) and deletions (red)
+- Inspect the original and modified content side by side
+- Navigate to a specific change in the file tree
+
+### Permission Approval Dialogs
+
+When an agent requests permission to run a shell command, access a file, or perform another gated action, the desktop app surfaces a modal dialog. You can approve, deny, or set an auto-approve rule for that action type so you're not interrupted for repetitive low-risk operations.
+
+Permission auto-approval rules are stored per-project and can be reviewed or cleared from the session settings panel.
+
+### Model and Provider Selection
+
+The desktop app includes a full settings UI for connecting AI providers and selecting models:
+
+<Steps>
+  <Step title="Open Settings">
+    Click the gear icon or navigate to Settings from the sidebar. The **Providers** tab lists all supported providers and their connection status.
+  </Step>
+  <Step title="Connect a provider">
+    Click **Connect** next to a provider and enter your API key. Shob supports standard API key authentication and also lets you add custom OpenAI-compatible endpoints for self-hosted models.
+  </Step>
+  <Step title="Select a model">
+    In the **Models** tab, choose the default model for new sessions. You can also override the model per-session from the session header bar using the model selector dropdown.
+  </Step>
+</Steps>
+
+### Themes
+
+The desktop app ships with **35 built-in color themes**, selectable from Settings. Themes affect the editor, terminal, diff viewer, and UI chrome.
+
+Available themes include:
+
+<CodeGroup>
+```
+Dark themes
+```
+```
+amoled · aura · ayu · carbonfox · catppuccin · catppuccin-frappe
+catppuccin-macchiato · cobalt2 · dracula · everforest · flexoki
+github · gruvbox · kanagawa · material · matrix · mercury · monokai
+nightowl · nord · one-dark · onedarkpro · rosepine · shadesofpurple
+shob · solarized · synthwave84 · tokyonight · vesper · zenburn
+```
+```
+Light & accent themes
+```
+```
+cursor · lucent-orng · oc-2 · orng · osaka-jade · palenight · vercel
+```
+</CodeGroup>
+
+Themes are JSON files that define CSS custom properties for colors, backgrounds, and terminal palette entries. You can also create your own theme by placing a JSON file in the themes directory.
+
+## System Tray
+
+The desktop app registers a system tray icon on all platforms:
+
+- **Windows & Linux** — Clicking the tray icon toggles the main window (show/hide). Right-clicking opens a context menu with **Show shob** and **Quit** options.
+- **macOS** — The tray icon provides the same context menu. The main window is also accessible via the dock.
+
+The tray icon ensures Shob remains accessible even when its main window is minimized or hidden, and it keeps the app running in the background while you work in other tools.
+
+## Auto-Updates
+
+The desktop app checks for updates automatically on launch and notifies you when a new version is available. On Windows and Linux, updates are downloaded in the background and applied on the next restart. On macOS, the app directs you to download the new installer from the GitHub releases page.
+
+You can also check for updates manually from **Settings → About**.
+
+<Note>
+Auto-updates are served from the [Shob GitHub releases page](https://github.com/shobcoder/shob/releases/latest). In development mode (running from source), auto-updates are disabled.
+</Note>
+
+## Opening Projects in External Tools
+
+The file tree header includes an **Open with** menu that lets you open the current project directory in:
+
+- **VS Code**, **Cursor**, **Zed**, **Sublime Text**, or **Xcode** (macOS: auto-detected from `/Applications`)
+- **Terminal**, **iTerm**, **Ghostty**, **Warp** (macOS), or the system default terminal (Windows/Linux)
+- **Finder** (macOS) or **Explorer** (Windows)
+
+On Windows, additional options include **Git Bash** and **WSL**.

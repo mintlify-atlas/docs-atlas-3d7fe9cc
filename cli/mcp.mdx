@@ -1,0 +1,151 @@
+---
+title: "shob mcp — Manage MCP Servers"
+sidebarTitle: "mcp"
+description: "shob mcp manages Model Context Protocol servers. Subcommands: add, list, auth, logout, debug."
+---
+
+`shob mcp` manages your [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server configuration. MCP servers extend the agent's toolset by exposing additional capabilities — such as file systems, databases, APIs, or custom tools — over a standardised protocol. Shob supports both local MCP servers (launched as a subprocess via a command) and remote MCP servers (connected over HTTP, with optional OAuth).
+
+## Usage
+
+```bash
+shob mcp <subcommand>
+```
+
+---
+
+## `shob mcp add`
+
+Launches an interactive wizard to add a new MCP server to your configuration. You will be prompted for:
+
+1. **Location** — whether to save the server to the current project (`shob.json` in the repo) or globally (`~/.config/shob/shob.json`)
+2. **Name** — a unique identifier for the server
+3. **Type** — `local` (runs a command) or `remote` (connects to a URL)
+4. For local servers: the **command** to run
+5. For remote servers: the **URL** and optional **OAuth** settings (client ID and secret)
+
+```bash
+shob mcp add
+```
+
+<Note>
+  The wizard writes directly to your `shob.json` or `shob.jsonc` configuration file using `jsonc-parser`, so existing comments are preserved.
+</Note>
+
+---
+
+## `shob mcp list`
+
+Lists all configured MCP servers along with their current connection status.
+
+```bash
+shob mcp list
+# alias: shob mcp ls
+```
+
+### Status indicators
+
+| Icon | Status | Meaning |
+|---|---|---|
+| `✓` | connected | Server is reachable and ready |
+| `⚠` | needs authentication | Remote server requires OAuth login |
+| `✗` | failed / needs client registration | Connection failed or client ID is missing |
+| `○` | not initialized / disabled | Server is configured but not yet started |
+
+### Example output
+
+```
+◆ MCP Servers
+
+●  github ✓ connected
+    shob x @modelcontextprotocol/server-github
+
+●  my-api ⚠ needs authentication
+    https://api.example.com/mcp
+
+●  filesystem ✓ connected (OAuth)
+    shob x @modelcontextprotocol/server-filesystem
+
+◆ 3 server(s)
+```
+
+---
+
+## `shob mcp auth`
+
+Authenticate with an OAuth-enabled remote MCP server. When called without a name, displays a selection list of all OAuth-capable servers with their current auth status.
+
+```bash
+shob mcp auth [name]
+```
+
+### Arguments
+
+<ParamField body="name" type="string">
+  Optional name of the MCP server to authenticate with. If omitted, an interactive selection prompt is shown.
+</ParamField>
+
+Shob opens your browser to complete the OAuth flow. If the browser cannot be opened automatically, it prints the authorization URL so you can open it manually.
+
+### `shob mcp auth list`
+
+Lists all OAuth-capable MCP servers and their current authentication status.
+
+```bash
+shob mcp auth list
+# alias: shob mcp auth ls
+```
+
+#### Auth status icons
+
+| Icon | Status |
+|---|---|
+| `✓` | authenticated — credentials are valid |
+| `⚠` | expired — credentials exist but have expired |
+| `✗` | not authenticated — no credentials stored |
+
+---
+
+## `shob mcp logout`
+
+Remove stored OAuth credentials for an MCP server. When called without a name, shows a selection prompt for all servers that have stored credentials.
+
+```bash
+shob mcp logout [name]
+```
+
+### Arguments
+
+<ParamField body="name" type="string">
+  Optional name of the MCP server to log out from. If omitted, an interactive selection prompt is shown.
+</ParamField>
+
+---
+
+## `shob mcp debug`
+
+Run a detailed OAuth connection diagnostic for a remote MCP server. Useful for troubleshooting authentication failures, discovering server metadata, and inspecting stored tokens.
+
+```bash
+shob mcp debug <name>
+```
+
+### Arguments
+
+<ParamField body="name" type="string" required>
+  The name of the remote MCP server to debug. Must be configured in `shob.json`.
+</ParamField>
+
+The debug command:
+- Displays stored token info (expiry, refresh token presence, client ID)
+- Sends a raw HTTP `initialize` request to the server and shows the response status
+- Checks for `WWW-Authenticate` headers indicating the OAuth discovery endpoint
+- Attempts the OAuth client connect flow and reports the outcome
+
+```bash
+shob mcp debug my-api
+```
+
+<Note>
+  `shob mcp debug` only works with servers configured as `type: "remote"` that have OAuth enabled. It exits early if the server is local or has `oauth: false`.
+</Note>

@@ -1,0 +1,91 @@
+---
+title: "shob github — GitHub Agent Integration"
+sidebarTitle: "github"
+description: "shob github manages the GitHub agent integration. Subcommands: install, run. Automates PR and issue handling via GitHub Actions."
+---
+
+`shob github` manages Shob's GitHub agent integration. Once installed, the integration wires Shob into your GitHub Actions workflows so that it can automatically respond to pull request events, issue comments, and other GitHub activity — reviewing code, suggesting fixes, and pushing commits on your behalf.
+
+## Usage
+
+```bash
+shob github <subcommand>
+```
+
+---
+
+## `shob github install`
+
+Installs the GitHub agent configuration into your repository. Run this command from the root of a Git repository to generate the required GitHub Actions workflow files and configuration.
+
+```bash
+shob github install
+```
+
+After installation, the GitHub agent is triggered by the workflow events defined in the generated configuration. Commit and push the generated files to enable the integration.
+
+---
+
+## `shob github run`
+
+Runs the GitHub agent for a specific event. This is typically invoked by the GitHub Actions workflow that `shob github install` generates, but you can also call it locally for testing.
+
+```bash
+shob github run [flags]
+```
+
+### Flags
+
+<ParamField body="--event" type="string">
+  A mock GitHub event payload (as a JSON string or a path to a JSON file) to simulate locally. When running inside GitHub Actions, the event is read automatically from the environment.
+</ParamField>
+
+<ParamField body="--token" type="string">
+  A GitHub Personal Access Token (`github_pat_...`) used to authenticate API calls to GitHub (reading PR content, posting comments, pushing commits). When running inside GitHub Actions, the token is typically provided via `${{ secrets.GITHUB_TOKEN }}` or a custom secret.
+</ParamField>
+
+### Example — local test run
+
+```bash
+shob github run \
+  --event '{"action":"opened","pull_request":{"number":42}}' \
+  --token github_pat_xxxxxxxxxxxx
+```
+
+---
+
+## `shob pr <number>` {#shob-pr}
+
+`shob pr` is a companion command that makes it easy to work on a pull request locally with the help of the Shob agent. It fetches and checks out the PR branch, optionally imports an associated Shob session from the PR description, then launches the interactive Shob TUI.
+
+```bash
+shob pr <number>
+```
+
+### Arguments
+
+<ParamField body="number" type="number" required>
+  The GitHub PR number to check out. The branch is created locally as `pr/<number>`.
+</ParamField>
+
+### What it does
+
+1. Runs `gh pr checkout <number> --branch pr/<number> --force` to create a local branch.
+2. For fork PRs, adds the fork's repository as a git remote and configures the upstream tracking branch so pushes go to the fork.
+3. Scans the PR description for a Shob session link (`https://opncd.ai/s/<id>`). If found, imports that session with `shob import` and resumes it via `shob run -s <sessionID>`.
+4. Launches the Shob TUI (`shob`) in the current working directory.
+
+### Example
+
+```bash
+# Check out PR #123 and start Shob
+shob pr 123
+```
+
+<Note>
+  `shob pr` requires the [GitHub CLI (`gh`)](https://cli.github.com) to be installed and authenticated. If `gh` is not available or not authenticated, the command exits with an error.
+</Note>
+
+<Note>
+  The `shob pr` command only works inside a Git repository. If no repository is found in the current directory, Shob exits with an error.
+</Note>

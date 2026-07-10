@@ -1,0 +1,177 @@
+---
+title: "Automate GitHub PRs and Issues with Shob"
+sidebarTitle: "GitHub Agent"
+description: "Set up the Shob GitHub agent to automatically handle pull requests and issues. Works via GitHub Actions or the shob github CLI commands."
+---
+
+The Shob GitHub agent brings AI-powered automation directly into your repository workflow. Once installed, it listens for trigger comments on issues and pull requests, checks out the relevant branch, and uses Shob to read context, write code, and push changes — all without leaving GitHub. It also supports scheduled runs and `workflow_dispatch` triggers for proactive, repository-wide tasks.
+
+## What the GitHub agent does
+
+The agent responds to events in your repository and handles them end-to-end:
+
+- **Issue comments** — When a collaborator comments `/shob <task>` on an issue, the agent checks out a new branch, implements changes, and opens a pull request that closes the issue.
+- **Pull request review comments** — When a reviewer leaves a `/shob` comment on a PR, the agent checks out the PR branch, makes the requested code changes, and pushes directly to the PR.
+- **Pull request events** — When a pull request is opened or updated, the agent can review it and post a summary comment.
+- **Scheduled runs** — A cron trigger creates a new branch, runs the configured prompt, and opens a pull request with the result.
+- **`workflow_dispatch`** — Manually trigger the agent from the GitHub Actions UI with a custom prompt.
+
+<Note>
+Only repository collaborators with **write** or **admin** permissions can trigger the agent. Comments from users with lesser permissions are silently ignored.
+</Note>
+
+## Setup
+
+<Steps>
+  <Step title="Run the install wizard">
+    From the root of your git repository, run:
+
+    ```bash
+    shob github install
+    ```
+
+    The wizard opens your browser to install the **shob-agent** GitHub App, then interactively prompts you to choose an AI provider and model.
+  </Step>
+
+  <Step title="Commit the generated workflow file">
+    After the wizard completes, a workflow file is created at `.github/workflows/shob.yml`. Commit and push it:
+
+    ```bash
+    git add .github/workflows/shob.yml
+    git commit -m "feat: add Shob GitHub agent"
+    git push
+    ```
+  </Step>
+
+  <Step title="Add provider secrets">
+    In your repository (or organisation) settings under **Secrets and variables → Actions**, add the environment variable(s) required by your chosen provider. For example, for Anthropic:
+
+    ```
+    ANTHROPIC_API_KEY
+    ```
+
+    The install wizard prints the exact variable names you need at the end of the setup flow.
+
+    <Note>
+    If you selected **Amazon Bedrock** as your provider, add an OIDC trust policy in AWS instead of a secret. The wizard links to the relevant GitHub documentation.
+    </Note>
+  </Step>
+
+  <Step title="Trigger the agent">
+    On any issue or pull request, post a comment that starts with `/shob` or `/oc`:
+
+    ```
+    /shob add unit tests for the auth module
+    ```
+
+    The agent reacts with 👀 to acknowledge it received the task, then gets to work.
+  </Step>
+</Steps>
+
+## The generated workflow file
+
+`shob github install` writes a workflow that triggers on `issue_comment` and `pull_request_review_comment` events:
+
+```yaml
+name: shob
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  shob:
+    if: |
+      contains(github.event.comment.body, ' /oc') ||
+      startsWith(github.event.comment.body, '/oc') ||
+      contains(github.event.comment.body, ' /shob') ||
+      startsWith(github.event.comment.body, '/shob')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: read
+      issues: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Run shob
+        uses: anomalyco/shob/github@latest
+        with:
+          model: anthropic/claude-sonnet-4-5
+```
+
+You can extend this workflow to also handle `pull_request`, `issues`, `schedule`, and `workflow_dispatch` events.
+
+## Running the agent manually
+
+### `shob github run`
+
+`shob github run` is the lower-level command that the GitHub Action calls internally. You can invoke it directly for local testing or custom automation:
+
+```bash
+shob github run [--event <json>] [--token <pat>]
+```
+
+| Flag | Description |
+|---|---|
+| `--event` | A JSON string representing a mock GitHub event context. Used for local testing without a live Actions environment. |
+| `--token` | A GitHub personal access token (`github_pat_*`). When provided, the agent skips OIDC token exchange and uses your PAT directly. |
+
+<CodeGroup>
+```bash Test with a mock event
+shob github run \
+  --token github_pat_xxxxxxxxxxxx \
+  --event '{"eventName":"issue_comment","repo":{"owner":"myorg","repo":"myrepo"},"payload":{"issue":{"number":42},"comment":{"id":1,"body":"/shob fix the typo in README.md"}}}'
+```
+
+```bash Run in a live CI environment
+# No flags needed — the agent reads GITHUB_TOKEN and the event context
+# injected by the GitHub Actions runner automatically.
+shob github run
+```
+</CodeGroup>
+
+<Warning>
+When using `--token`, make sure your PAT has `repo` and `read:org` scopes. Never commit a PAT to source control — use GitHub Actions secrets instead.
+</Warning>
+
+## Working on a PR locally with `shob pr`
+
+Use `shob pr <number>` to check out a pull request branch and open a Shob session in the context of that PR:
+
+```bash
+shob pr 123
+```
+
+This command:
+1. Runs `gh pr checkout 123 --branch pr/123` to create a local tracking branch.
+2. For cross-repository (fork) PRs, adds the fork as a remote and sets the upstream so pushes go to the right place.
+3. Looks for a Shob session link in the PR body and imports it automatically if found.
+4. Launches the Shob TUI with the session pre-loaded.
+
+<Note>
+`shob pr` requires the [GitHub CLI (`gh`)](https://cli.github.com/) to be installed and authenticated.
+</Note>
+
+## Security considerations
+
+<CardGroup cols={2}>
+  <Card title="Use OIDC, not PATs" icon="shield-check">
+    The default setup uses GitHub's OIDC token exchange to obtain a scoped installation token from the Shob API. This means no long-lived secrets are stored in your repository.
+  </Card>
+  <Card title="Write permission required" icon="lock">
+    The agent checks that the comment author has `write` or `admin` permission before acting. Comments from read-only collaborators are rejected.
+  </Card>
+  <Card title="Minimal GitHub permissions" icon="key">
+    The generated workflow requests only `id-token: write`, `contents: read`, `pull-requests: read`, and `issues: read`. Widen these only if your use case requires it.
+  </Card>
+  <Card title="Token revocation" icon="rotate">
+    The installation token obtained for each run is automatically revoked after the agent finishes, whether it succeeds or fails.
+  </Card>
+</CardGroup>

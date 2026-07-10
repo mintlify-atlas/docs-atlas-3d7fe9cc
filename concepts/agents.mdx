@@ -1,0 +1,164 @@
+---
+title: "Agents in Shob: Types, Modes, and Configuration"
+sidebarTitle: "Agents"
+description: "Agents are AI personas in Shob with defined tools, prompts, and permission rules. Learn about primary agents, subagents, and how to customize them."
+---
+
+An **agent** in Shob is a named configuration that controls how the AI behaves during a session. Each agent specifies which language model to use, what system prompt to apply, which tools are available, how permissions are enforced, and how many reasoning steps it may take. Agents are not different AI services — they are different *personas* or *roles* that Shob can adopt, powered by whichever model you have configured.
+
+## Agent Properties
+
+Every agent is defined by the following properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | string | Unique identifier used to select the agent (e.g., `build`, `plan`, `explore`) |
+| `description` | string | Explains when the agent should be used; shown in the TUI and used for subagent selection |
+| `mode` | `primary` \| `subagent` \| `all` | Controls where the agent can appear (see below) |
+| `model` | `provider/model` | Override the default model for this agent |
+| `prompt` | string | Custom system prompt injected at the start of the conversation |
+| `permission` | ruleset | Per-agent permission overrides (merged on top of global defaults) |
+| `steps` | number | Maximum agentic iterations before forcing a text-only response |
+| `temperature` | number | Sampling temperature for the model |
+| `topP` | number | Top-P nucleus sampling parameter |
+| `variant` | string | Provider-specific reasoning effort (e.g., `high`, `max`, `minimal`) |
+| `color` | string | Hex color or theme color for the agent chip in the TUI |
+| `hidden` | boolean | Hide this subagent from the `@` autocomplete menu |
+
+## Agent Modes
+
+The `mode` field determines where an agent can appear in a session:
+
+<CardGroup cols={3}>
+  <Card title="primary" icon="star">
+    The agent can be selected directly by the user as the main agent for a session. Primary agents appear in the TUI agent selector and can be specified with `--agent` on the CLI.
+  </Card>
+  <Card title="subagent" icon="share-nodes">
+    The agent can only be invoked by another agent using the `task` tool. Subagents do not appear in the main agent selector but are available via `@name` mentions.
+  </Card>
+  <Card title="all" icon="layer-group">
+    The agent can act as both a primary agent (selected by the user) and a subagent (invoked by other agents). This is the default mode for custom agents created with `shob agent create`.
+  </Card>
+</CardGroup>
+
+## Built-in Agents
+
+Shob ships with several native agents out of the box:
+
+<Accordion title="build — The default primary agent">
+The `build` agent is what runs when you open Shob without specifying another agent. It has read/write/edit/shell access and will ask for your approval on any sensitive operations. It is the only agent with `question` permission enabled, which means it can ask you clarifying questions mid-task.
+
+**Mode:** `primary`
+</Accordion>
+
+<Accordion title="plan — Read-only planning agent">
+The `plan` agent operates in a restricted mode: all edit tools are denied except for writing plan files into `.shob/plans/`. Use it to explore a codebase and produce a structured plan before making any changes.
+
+**Mode:** `primary`
+</Accordion>
+
+<Accordion title="explore — Fast codebase exploration subagent">
+The `explore` agent is optimised for searching and understanding code. It has access to `grep`, `glob`, `list`, `read`, `bash`, `webfetch`, `websearch`, and `codesearch`, but cannot write or edit files. Primary agents delegate research tasks to it.
+
+When invoking it, specify a thoroughness level in your message: `"quick"`, `"medium"`, or `"very thorough"`.
+
+**Mode:** `subagent`
+</Accordion>
+
+<Accordion title="general — General-purpose multi-step subagent">
+The `general` agent handles complex, multi-step tasks and can be called in parallel with other subagents. It has broad tool access but cannot write to-do lists (`todowrite` is denied).
+
+**Mode:** `subagent`
+</Accordion>
+
+<Accordion title="compaction, title, summary — Internal hidden agents">
+These three agents are used internally by Shob and are hidden from the UI:
+
+- **compaction** — Summarises older messages when the context window fills up
+- **title** — Generates a short, descriptive title for a new session
+- **summary** — Produces the file-change summary shown at the end of a run
+</Accordion>
+
+## Subagent Delegation
+
+Primary agents can spawn subagents to parallelise or specialise work. A primary agent calls the built-in `task` tool, providing the name of a subagent and a message. Shob creates a **child session** for the subagent and runs it independently. The primary agent waits for the child to complete before continuing.
+
+```
+User → build (primary)
+         └── explore (subagent, child session) — "Find all API endpoints"
+         └── general (subagent, child session) — "Summarise the auth module"
+```
+
+Only agents with `mode: "subagent"` or `mode: "all"` are available for delegation. An agent's `description` field is surfaced to the primary agent so it can choose the right subagent for each task.
+
+<Tip>
+Give your custom subagents detailed `description` values. The primary agent reads these descriptions to decide which subagent to call.
+</Tip>
+
+## Listing Agents
+
+```bash
+shob agent list
+```
+
+This prints every available agent (native and custom) along with its mode and permission ruleset. Native agents are listed first.
+
+## Creating Custom Agents
+
+The `shob agent create` command generates a new agent interactively or fully non-interactively:
+
+<CodeGroup>
+
+```bash Interactive
+shob agent create
+```
+
+```bash Non-interactive
+shob agent create \
+  --description "A specialist for writing database migrations" \
+  --mode subagent \
+  --tools bash,read,edit \
+  --model anthropic/claude-sonnet-4-5
+```
+
+</CodeGroup>
+
+The command calls the configured model to generate an `identifier` and `systemPrompt` from your description, then writes a Markdown file with YAML front matter to either `.shob/agent/` (project-scoped) or the global config directory.
+
+Available tools you can enable or restrict: `bash`, `read`, `write`, `edit`, `list`, `glob`, `grep`, `webfetch`, `task`, `todowrite`.
+
+### Custom agent file format
+
+Custom agents are Markdown files. The front matter carries the configuration, and the Markdown body becomes the system prompt:
+
+```md .shob/agent/migrations.md
+---
+description: Specialist for writing and reviewing database migrations
+mode: subagent
+tools:
+  write: false
+  todowrite: false
+---
+
+You are an expert database engineer. When asked to create a migration, you will
+analyse the existing schema, write a reversible migration file, and verify it
+runs cleanly. Always explain your changes before writing any files.
+```
+
+You can also configure agents in `shob.json` under the `agent` key. See [Agent Configuration](/configuration/agents) for the full schema.
+
+## Setting the Default Agent
+
+If you want a different primary agent to open by default instead of `build`, set `default_agent` in your config:
+
+```json shob.json
+{
+  "default_agent": "plan"
+}
+```
+
+The specified agent must have `mode: "primary"` or `mode: "all"` and must not be hidden.
+
+## CLI Reference
+
+See [CLI — agent](/cli/agent) for the complete command reference.

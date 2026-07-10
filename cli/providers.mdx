@@ -1,0 +1,126 @@
+---
+title: "shob providers — Authenticate and List AI Providers"
+sidebarTitle: "providers"
+description: "shob providers manages AI provider authentication. Subcommands: login, logout, list. Supports Anthropic, OpenAI, and custom providers."
+---
+
+`shob providers` manages the credentials Shob uses to connect to AI model providers. You can log in to a provider interactively (via OAuth or API key), log out, and inspect which providers are currently authenticated. The command is also accessible via the alias `shob auth`.
+
+## Usage
+
+```bash
+shob providers <subcommand>
+# alias: shob auth <subcommand>
+```
+
+---
+
+## `shob providers login`
+
+Authenticate with an AI provider. When called without arguments, an interactive autocomplete list of all known providers is shown. The login flow varies by provider:
+
+- **OAuth providers** — Shob opens a browser (or prints a URL) for you to authorise access, then automatically saves the tokens.
+- **API key providers** — Shob prompts you to paste your API key, which is stored locally in `~/.local/share/shob/auth.json`.
+- **Custom / Other** — Select "Other" from the list to enter a custom provider ID.
+
+```bash
+shob providers login [url] [flags]
+```
+
+### Arguments
+
+<ParamField body="url" type="string">
+  Optional URL of a Shob-compatible auth provider. When provided, Shob fetches the provider's `/.well-known/shob` discovery document and runs the recommended auth command automatically.
+</ParamField>
+
+### Flags
+
+<ParamField body="--provider" type="string">
+  Alias: `-p`
+
+  Provider ID or name to log in to, skipping the interactive selection prompt. For example: `anthropic`, `openai`, `google`.
+</ParamField>
+
+<ParamField body="--method" type="string">
+  Alias: `-m`
+
+  Login method label to use, skipping the method selection prompt when a provider supports multiple methods (e.g. both OAuth and API key). The value must match a method label exactly (case-insensitive).
+</ParamField>
+
+### Examples
+
+**Interactive login (choose provider from list)**
+
+```bash
+shob providers login
+```
+
+**Log in to Anthropic directly**
+
+```bash
+shob providers login --provider anthropic
+```
+
+**Log in to OpenAI skipping provider selection**
+
+```bash
+shob providers login -p openai
+```
+
+---
+
+## `shob providers logout`
+
+Remove stored credentials for a provider. An interactive selection prompt lists all providers that currently have credentials.
+
+```bash
+shob providers logout
+```
+
+---
+
+## `shob providers list`
+
+Show all configured provider credentials and any AI-related environment variables that Shob has detected.
+
+```bash
+shob providers list
+# alias: shob providers ls
+```
+
+### Example output
+
+```
+◆ Credentials ~/.local/share/shob/auth.json
+
+●  Anthropic  oauth
+●  OpenAI     api
+
+◆ 2 credentials
+
+◆ Environment
+
+●  Anthropic  ANTHROPIC_API_KEY
+
+◆ 1 environment variable
+```
+
+The list distinguishes between stored credentials (`oauth` or `api` type) and active environment variables.
+
+---
+
+## Environment variable authentication
+
+As an alternative to interactive login, Shob automatically reads standard provider environment variables. Set the appropriate variable before running `shob`:
+
+| Provider | Environment variable |
+|---|---|
+| Anthropic | `ANTHROPIC_API_KEY` |
+| OpenAI | `OPENAI_API_KEY` |
+| Google | `GOOGLE_GENERATIVE_AI_API_KEY` |
+
+Environment variables take effect immediately without running `shob providers login`. Run `shob providers list` to confirm Shob has detected them.
+
+<Note>
+  Stored credentials (from `shob providers login`) and environment variables can coexist. Environment variables are shown in a separate section of `shob providers list` and do not overwrite stored credentials.
+</Note>

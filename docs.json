@@ -1,72 +1,113 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "Shob",
+  "theme": "luma",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#06ab5b",
+    "light": "#7aeab4",
+    "dark": "#06ab5b"
   },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
+  "favicon": "https://media.brand.dev/62988fca-4dfa-4b45-a34e-a3d0369bf44d.png",
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/shobcoder/shob"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/shobcoder/shob"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/sessions",
+              "concepts/agents",
+              "concepts/permissions",
+              "concepts/providers"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/overview",
+              "configuration/providers",
+              "configuration/mcp",
+              "configuration/agents"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/parallel-sessions",
+              "features/git-integration",
+              "features/skills",
+              "features/desktop-app"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/github-agent",
+              "guides/custom-plugins",
+              "guides/headless-server"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "Commands",
+            "pages": [
+              "cli/overview",
+              "cli/run",
+              "cli/serve",
+              "cli/session",
+              "cli/mcp",
+              "cli/agent",
+              "cli/providers",
+              "cli/github"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDK & Plugins",
+        "groups": [
+          {
+            "group": "JavaScript SDK",
+            "pages": [
+              "sdk/overview",
+              "sdk/client",
+              "sdk/server"
+            ]
+          },
+          {
+            "group": "Plugin Development",
+            "pages": [
+              "plugins/overview",
+              "plugins/hooks",
+              "plugins/tools"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

@@ -1,0 +1,118 @@
+---
+title: "Shob's Deep Git Integration for Safe AI Changes"
+sidebarTitle: "Git Integration"
+description: "Shob understands your repository state, active branch, and uncommitted changes. AI agents work safely within your git workflow with diff preview and revert support."
+---
+
+Shob treats git as a first-class citizen. When you start a session inside a git repository, Shob reads your active branch, tracks the working tree status, and surfaces exactly what the agent has changed — before, during, and after the session. You stay in control of every commit.
+
+## How Shob Reads Your Repository
+
+At session startup, Shob detects whether the current working directory is inside a git repository. If it is, the session gains access to the full set of git primitives:
+
+- **Active branch** — Shob reads the current `HEAD` branch via `git symbolic-ref --quiet --short HEAD`. Agents are always aware of which branch they're on.
+- **Working tree status** — Shob runs `git status --porcelain=v1` to understand which files are added, modified, or deleted relative to HEAD. This is passed to the agent as context so it understands the current state of the repo before making changes.
+- **Diff stats** — Shob uses `git diff --numstat` to count additions and deletions per file, feeding accurate change summaries into the agent context.
+- **Repository root** — `git rev-parse --show-toplevel` is used to anchor file operations to the correct project root, regardless of which subdirectory you launch Shob from.
+- **Default branch detection** — Shob inspects remote tracking refs (`refs/remotes/<remote>/HEAD`) and falls back to common conventions (`main`, `master`) to identify the project's default branch.
+
+<Note>
+Shob only integrates with git repositories. For projects not tracked by git, session diffs and revert features are not available. The `vcs` field in the project instance will be set to something other than `"git"` in that case.
+</Note>
+
+## Diff Preview
+
+After an agent turn completes, Shob computes a per-session diff that shows every file the agent touched — with line-level additions and deletions. This diff is available in both the CLI and the desktop app.
+
+In the CLI, session diffs are displayed after each turn using standard unified diff format. In the desktop app, the **Review** tab provides a side-by-side diff viewer with syntax highlighting.
+
+The session diff is computed against the snapshot taken at the start of the session (or the last revert point), so you always see the cumulative effect of the agent's work — not just the most recent turn.
+
+### Reading Git File State
+
+Shob can show you the base content of any file (from `HEAD`) alongside the agent's current version. This is done via:
+
+```bash
+git show HEAD:<relative-path>
+```
+
+Files larger than 512 KB are flagged as large and shown without inline diff to avoid performance issues.
+
+## Revert Support
+
+Every session records a **revert point** — a snapshot of the working tree state before any changes were applied. If the agent produces changes you don't want, you can revert back to a specific message or turn within the session.
+
+<Steps>
+  <Step title="Revert to a specific message">
+    Select any message in the session and choose **Revert to here**. Shob identifies all file patches applied after that point and reverses them.
+  </Step>
+  <Step title="Review the revert diff">
+    Before confirming, you can inspect the diff that will be undone. The revert preview shows exactly which lines will be restored.
+  </Step>
+  <Step title="Confirm or cancel">
+    Confirming the revert restores the working tree. Cancelling leaves everything as-is. You can unrevert (re-apply the changes) at any time as long as the session is still open.
+  </Step>
+</Steps>
+
+Revert state is stored in the session database. A session with an active revert point tracks:
+
+- The message ID at which the revert is anchored
+- A snapshot reference used to restore the working tree
+- A diff showing what was undone (for display in the review view)
+
+## Working with Branches
+
+Shob agents always operate on the currently checked-out branch. The agent is aware of the branch name and uses it when generating commit messages or deciding how to structure changes.
+
+To switch branches before starting a session:
+
+```bash
+git checkout feature/my-branch
+shob "Continue work on the authentication refactor"
+```
+
+To list all local branches:
+
+```bash
+# Shob reads branches via git for-each-ref
+git branch
+```
+
+Branch switching mid-session is not recommended, as it will change the working tree out from under the agent.
+
+## Working on Pull Requests with `shob pr`
+
+The `shob pr` command is a convenience workflow for checking out a GitHub pull request branch and immediately starting a Shob session on it:
+
+```bash
+shob pr <number>
+```
+
+This command:
+
+1. Runs `gh pr checkout <number> --branch pr/<number> --force` to fetch and check out the PR branch locally
+2. Fetches PR metadata to check for an embedded Shob session link in the PR description
+3. If a session link is found, imports that session so you can resume the exact context used to create the PR
+4. Starts Shob on the checked-out branch, optionally resuming the imported session
+
+```bash
+# Check out PR #142 and start a Shob session
+shob pr 142
+```
+
+<Note>
+The `shob pr` command requires the [GitHub CLI (`gh`)](https://cli.github.com/) to be installed and authenticated. It works with both same-repository PRs and cross-repository (fork) PRs — fork remotes are added automatically when needed.
+</Note>
+
+### Fork PR Handling
+
+For PRs from forks, Shob automatically adds the fork's repository as a remote and sets the branch's upstream tracking reference to the fork. This means pushes from the session go back to the fork, which is the correct behavior for contributing back to the original PR.
+
+## VCS Detection
+
+Shob checks whether the project directory is a git repository before enabling git-specific features. This check is performed at session startup:
+
+- If a git repository is found (`git rev-parse --show-toplevel` succeeds), all git integration features are active.
+- If no git repository is found, the session proceeds without VCS awareness. The `shob pr` command will exit with an error message in this case.
+
+The git integration is always read-only with respect to branches and commits — Shob never automatically commits or pushes changes. All commits remain under your control.

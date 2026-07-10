@@ -1,47 +1,194 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Shob in 5 Minutes"
+sidebarTitle: "Quickstart"
+description: "Install Shob, connect an AI provider, and run your first AI coding task in under 5 minutes with this step-by-step guide."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+By the end of this guide you will have Shob installed, an AI provider authenticated, and your first coding task running in your terminal. The whole process takes under five minutes on a standard internet connection.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+
+  <Step title="Install Shob">
+    Install the `shob-code` package globally using your preferred package manager.
+
+    <CodeGroup>
+      ```bash npm
+      npm install -g shob-code
+      ```
+
+      ```bash bun
+      bun install -g shob-code
+      ```
+
+      ```bash pnpm
+      pnpm install -g shob-code
+      ```
+    </CodeGroup>
+
+    Verify the installation succeeded by checking the version:
 
     ```bash
-    npm install your-package
+    shob --version
+    ```
+
+    You should see output similar to:
+
+    ```
+    0.0.2
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Authenticate a Provider">
+    Shob needs access to an AI provider to power its agents. Run the interactive login flow to add your first credential:
 
     ```bash
-    your-cli init
+    shob providers login
     ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+    The CLI presents an interactive provider picker. Use the arrow keys to select your provider, then press **Enter**:
+
+    ```
+    ┌  Add credential
+    │
+    ◆  Select provider
+    │  ● Anthropic
+    │  ○ OpenAI  (ChatGPT Plus/Pro or API key)
+    │  ○ Google
+    │  ○ OpenRouter
+    │  ○ Vercel
+    │  ○ Other
+    └
+    ```
+
+    After choosing a provider you will be prompted for your API key:
+
+    ```
+    ┌  Add credential
+    │
+    ◇  Select provider
+    │  Anthropic
+    │
+    ◆  Enter your API key
+    │  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+    └
+    ```
+
+    Press **Enter** after pasting your key. You will see a confirmation:
+
+    ```
+    ◇  Login successful
+    │
+    └  Done
+    ```
+
+    <Tip>
+      If you already know your provider ID and want to skip the interactive picker, pass it directly:
+
+      ```bash
+      shob providers login --provider anthropic
+      ```
+    </Tip>
+
+    To see all configured credentials at any time, run:
 
     ```bash
-    your-cli start
+    shob providers list
     ```
   </Step>
+
+  <Step title="Run Your First Task">
+    Navigate to your project directory and send a message to Shob using `shob run`:
+
+    ```bash
+    cd your-project
+    shob run "Add input validation to the login form and write a unit test for it"
+    ```
+
+    Shob starts a new session, picks an available model from your configured provider, and begins planning the task:
+
+    ```
+       _____ _           _
+      / ____| |         | |
+     | (___ | |__   ___ | |__
+      \___ \| '_ \ / _ \| '_ \
+      ____) | | | | (_) | |_) |
+     |_____/|_| |_|\___/|_.__/
+
+    Session abc123 · Anthropic · claude-sonnet-4-5
+    ──────────────────────────────────────────────
+    ✦  Planning task...
+    ✦  Reading src/components/LoginForm.tsx
+    ✦  Reading src/tests/LoginForm.test.tsx
+    ```
+
+    <Note>
+      You can pin a specific model with the `--model` flag, for example `--model anthropic/claude-opus-4-5`. The value should be in `provider/model` format.
+    </Note>
+  </Step>
+
+  <Step title="Review and Approve Permissions">
+    Before Shob writes any file or runs any command it will pause and ask for your approval:
+
+    ```
+    ┌  Permission request
+    │
+    │  Write file
+    │  src/components/LoginForm.tsx
+    │
+    ◆  Approve?
+    │  ● Yes, allow once
+    │  ○ Yes, allow for this session
+    │  ○ No, deny
+    └
+    ```
+
+    Choose **Yes, allow for this session** to approve similar actions for the rest of this task without being prompted again, or **Yes, allow once** to review each action individually.
+
+    <Warning>
+      The `--dangerously-skip-permissions` flag on `shob run` will auto-approve all non-denied permissions without prompting. Use it only in trusted automated environments after carefully auditing your permission configuration.
+    </Warning>
+  </Step>
+
+  <Step title="View Results and Next Steps">
+    Once the task is complete, Shob prints a summary of everything it changed:
+
+    ```
+    ✦  Modified  src/components/LoginForm.tsx
+    ✦  Created   src/tests/LoginForm.validation.test.tsx
+    ✦  Session complete · 2 files changed
+
+    Resume with: shob run --continue
+    ```
+
+    You can inspect the diff in your editor, run your test suite, and then continue the conversation in the same session:
+
+    ```bash
+    # Continue the last session
+    shob run --continue "Also add server-side validation in the API route"
+
+    # Continue a specific session by ID
+    shob run --session abc123 "Update the error messages to match our design system"
+    ```
+
+    <Tip>
+      Attach files to your message with `-f` to give the agent additional context without pasting code into the prompt:
+
+      ```bash
+      shob run -f design-spec.md "Implement the button component shown in this spec"
+      ```
+    </Tip>
+  </Step>
+
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+<CardGroup cols={3}>
+  <Card title="Sessions" icon="window" href="/concepts/sessions">
+    Learn how sessions work, how to resume them, and how to fork them for safe experimentation.
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/configuration/overview">
+    Customise providers, models, permission rules, and plugins in `shob.json`.
+  </Card>
+  <Card title="run command" icon="terminal" href="/cli/run">
+    Full reference for all flags available on `shob run`.
+  </Card>
+</CardGroup>

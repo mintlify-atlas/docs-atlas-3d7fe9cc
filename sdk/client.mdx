@@ -1,0 +1,271 @@
+---
+title: "OpencodeClient: Shob SDK REST API Client"
+sidebarTitle: "Client"
+description: "createOpencodeClient creates a typed REST API client for a running Shob server. Covers sessions, providers, tools, MCP, file operations, and real-time events."
+---
+
+`createOpencodeClient` returns an `OpencodeClient` instance — a fully typed HTTP client that wraps every endpoint of the Shob REST API. Import it from `@shob-ai/sdk` (or `@shob-ai/sdk/client` if you only need the client without server spawning) and point it at a running Shob server to start making calls.
+
+## Creating a client
+
+```typescript
+import { createOpencodeClient } from "@shob-ai/sdk/client"
+
+const client = createOpencodeClient({
+  baseUrl: "http://127.0.0.1:4096",
+})
+```
+
+### Configuration options
+
+<ParamField body="baseUrl" type="string">
+  The base URL of the Shob server, e.g. `"http://127.0.0.1:4096"`. Every request is sent relative to this URL.
+</ParamField>
+
+<ParamField body="directory" type="string">
+  The working directory of the project you want to target on this server. When set, the value is encoded and sent as the `x-shob-directory` request header (and promoted to a `?directory=` query parameter on `GET`/`HEAD` requests). This allows a single Shob server to serve multiple projects simultaneously.
+</ParamField>
+
+<ParamField body="fetch" type="(request: Request) => Promise<Response>">
+  A custom `fetch` implementation. Useful when running in environments that require a polyfill or when you want to add request-level instrumentation. If omitted, the global `fetch` is used with `timeout` disabled.
+</ParamField>
+
+<ParamField body="headers" type="Record<string, string>">
+  Additional headers to include with every request, merged on top of the client defaults.
+</ParamField>
+
+### The `x-shob-directory` header
+
+When you configure a `directory`, `createOpencodeClient` automatically:
+
+1. Sets `x-shob-directory: <encoded path>` on every request.
+2. For `GET` and `HEAD` requests, promotes the header value to a `?directory=` query string parameter instead (since many HTTP caches and proxies ignore custom request headers).
+
+This means a single Shob server process can host multiple projects at different directories, and your client calls are automatically routed to the right one.
+
+---
+
+## `OpencodeClient` method groups
+
+`OpencodeClient` organises its methods into namespaced sub-clients. Each sub-client is available as a property on the `OpencodeClient` instance.
+
+### `client.session` — Session management
+
+The session namespace contains all methods for creating and interacting with AI agent sessions.
+
+| Method | Description |
+|---|---|
+| `session.list()` | List all sessions |
+| `session.create(options?)` | Create a new session |
+| `session.get(options)` | Get a session by ID |
+| `session.update(options)` | Update session properties (e.g. title) |
+| `session.delete(options)` | Delete a session and all its data |
+| `session.status(options?)` | Get running-status map for all sessions |
+| `session.children(options)` | List child sessions |
+| `session.todo(options)` | Get the todo list for a session |
+| `session.prompt(options)` | Send a message and wait for the response |
+| `session.promptAsync(options)` | Send a message and return immediately |
+| `session.messages(options)` | List all messages in a session |
+| `session.message(options)` | Get a single message by ID |
+| `session.diff(options)` | Get the file diff for a session |
+| `session.fork(options)` | Fork a session at a specific message |
+| `session.abort(options)` | Abort a running session |
+| `session.share(options)` | Share a session publicly |
+| `session.unshare(options)` | Remove the public share |
+| `session.revert(options)` | Revert to a previous message |
+| `session.unrevert(options)` | Restore all reverted messages |
+| `session.summarize(options)` | Trigger session summarisation |
+| `session.init(options)` | Analyse the project and create an `AGENTS.md` file |
+| `session.shell(options)` | Run a shell command within a session |
+| `session.command(options)` | Send a slash command to a session |
+
+### `client.provider` — Provider management
+
+| Method | Description |
+|---|---|
+| `provider.list()` | List all configured AI providers |
+| `provider.auth()` | List authentication methods for providers |
+| `provider.oauth.authorize(options)` | Begin an OAuth authorisation flow |
+| `provider.oauth.callback(options)` | Handle the OAuth redirect callback |
+
+### `client.mcp` — Model Context Protocol servers
+
+| Method | Description |
+|---|---|
+| `mcp.status()` | Get status of all connected MCP servers |
+| `mcp.add(options?)` | Dynamically add an MCP server |
+| `mcp.connect(options)` | Connect a named MCP server |
+| `mcp.disconnect(options)` | Disconnect a named MCP server |
+| `mcp.auth.start(options)` | Start OAuth flow for an MCP server |
+| `mcp.auth.callback(options)` | Complete OAuth with an authorisation code |
+| `mcp.auth.authenticate(options)` | Start OAuth and wait for callback (opens browser) |
+| `mcp.auth.remove(options)` | Remove stored OAuth credentials for an MCP server |
+
+### `client.file` — File operations
+
+| Method | Description |
+|---|---|
+| `file.list(options)` | List files and directories |
+| `file.read(options)` | Read the content of a file |
+| `file.status(options?)` | Get file status (modified, untracked, etc.) |
+
+### `client.find` — Search
+
+| Method | Description |
+|---|---|
+| `find.text(options)` | Search for text across files |
+| `find.files(options)` | Find files by name or glob |
+| `find.symbols(options)` | Find workspace symbols via LSP |
+
+### `client.tool` — Tool introspection
+
+| Method | Description |
+|---|---|
+| `tool.ids(options?)` | List all registered tool IDs (built-in + plugins) |
+| `tool.list(options)` | List tools with JSON Schema parameters for a given provider/model |
+
+### `client.config` — Configuration
+
+| Method | Description |
+|---|---|
+| `config.get(options?)` | Get the current server configuration |
+| `config.update(options?)` | Patch the server configuration |
+| `config.providers(options?)` | List all configured providers |
+
+### `client.project` — Projects
+
+| Method | Description |
+|---|---|
+| `project.list()` | List all known projects |
+| `project.current()` | Get the currently active project |
+
+### `client.global` — Global events (SSE)
+
+| Method | Description |
+|---|---|
+| `global.event(options?)` | Subscribe to the global SSE event stream at `/global/event` |
+
+### `client.event` — Per-instance events (SSE)
+
+| Method | Description |
+|---|---|
+| `event.subscribe(options?)` | Subscribe to the instance-scoped SSE stream at `/event` |
+
+### `client.pty` — PTY sessions
+
+| Method | Description |
+|---|---|
+| `pty.list()` | List all PTY sessions |
+| `pty.create(options?)` | Create a new PTY session |
+| `pty.get(options)` | Get PTY session info |
+| `pty.update(options)` | Update a PTY session |
+| `pty.remove(options)` | Remove a PTY session |
+| `pty.connect(options)` | Connect to a PTY session |
+
+### `client.auth` — Authentication
+
+| Method | Description |
+|---|---|
+| `auth.set(options)` | Set authentication credentials for a provider |
+
+### `client.app` — Application utilities
+
+| Method | Description |
+|---|---|
+| `app.log(options?)` | Write a log entry to the server logs |
+| `app.agents(options?)` | List all available agents |
+
+### `client.vcs` — Version control
+
+| Method | Description |
+|---|---|
+| `vcs.get(options?)` | Get VCS (Git) information for the current instance |
+
+### `client.lsp` — Language Server Protocol
+
+| Method | Description |
+|---|---|
+| `lsp.status(options?)` | Get LSP server status |
+
+### `client.formatter` — Code formatters
+
+| Method | Description |
+|---|---|
+| `formatter.status(options?)` | Get formatter status |
+
+### `client.tui` — TUI control
+
+| Method | Description |
+|---|---|
+| `tui.appendPrompt(options?)` | Append text to the TUI prompt input |
+| `tui.submitPrompt(options?)` | Submit the current TUI prompt |
+| `tui.clearPrompt(options?)` | Clear the TUI prompt input |
+| `tui.openHelp(options?)` | Open the help dialog |
+| `tui.openSessions(options?)` | Open the sessions dialog |
+| `tui.openThemes(options?)` | Open the theme picker |
+| `tui.openModels(options?)` | Open the model picker |
+| `tui.executeCommand(options?)` | Execute a TUI command (e.g. `agent_cycle`) |
+| `tui.showToast(options?)` | Show a toast notification |
+| `tui.publish(options?)` | Publish a TUI event |
+| `tui.control.next(options?)` | Dequeue the next pending TUI control request |
+| `tui.control.response(options?)` | Submit a response to the TUI control queue |
+
+### `client.instance` — Instance lifecycle
+
+| Method | Description |
+|---|---|
+| `instance.dispose(options?)` | Dispose the current server instance |
+
+### Permission responses
+
+The `postSessionIdPermissionsPermissionId` method is available directly on `OpencodeClient` to respond to a pending permission request:
+
+```typescript
+await client.postSessionIdPermissionsPermissionId({
+  path: { id: sessionID, permissionID: "perm_abc123" },
+  body: { response: "allow" },
+})
+```
+
+---
+
+## Full example
+
+```typescript
+import { createOpencodeClient } from "@shob-ai/sdk/client"
+
+const client = createOpencodeClient({
+  baseUrl: "http://127.0.0.1:4096",
+  directory: "/home/user/my-project",
+})
+
+// List all existing sessions
+const { data: sessions } = await client.session.list()
+console.log(`Found ${sessions?.length ?? 0} sessions`)
+
+// Create a new session
+const { data: session } = await client.session.create()
+const sessionID = session!.id
+
+// Send a prompt
+await client.session.prompt({
+  path: { id: sessionID },
+  body: {
+    content: [{ type: "text", text: "What files are in this project?" }],
+    providerID: "anthropic",
+    modelID: "claude-sonnet-4-5",
+  },
+})
+
+// Read the messages back
+const { data: messages } = await client.session.messages({
+  path: { id: sessionID },
+})
+console.log(messages)
+
+// Subscribe to real-time events
+const stream = client.global.event()
+for await (const event of stream) {
+  console.log("event:", event)
+}
+```

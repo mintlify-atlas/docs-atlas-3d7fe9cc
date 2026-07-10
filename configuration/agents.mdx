@@ -1,0 +1,289 @@
+---
+title: "Define Custom Agents in shob.json"
+sidebarTitle: "Agents Config"
+description: "Create custom AI agents in shob.json with specific models, system prompts, tools, and permission rules. Agents can be primary, subagent, or both."
+---
+
+Shob ships with a set of built-in agents (`build`, `plan`, `general`, `explore`, and a few hidden internal ones). You can override any of these agents' settings, or define entirely new agents, using the `agent` block in `shob.json`. Custom agents get their own model, system prompt, permission rules, and appearance — making it easy to build specialised workflows directly into your configuration.
+
+## Built-in agents
+
+| Name | Mode | Description |
+|---|---|---|
+| `build` | `primary` | The default interactive agent. Executes tools based on configured permissions. |
+| `plan` | `primary` | Plan mode — disallows all edit/write tools. |
+| `general` | `subagent` | General-purpose research and multi-step task execution. |
+| `explore` | `subagent` | Fast codebase exploration: file patterns, keyword search, structural questions. |
+
+All built-in agents can be overridden by adding a matching key under `agent` in `shob.json`.
+
+---
+
+## The `agent` config block
+
+```json
+{
+  "agent": {
+    "<agent-name>": {
+      "description": "...",
+      "mode": "primary" | "subagent" | "all",
+      "model": "provider/model-name",
+      ...
+    }
+  }
+}
+```
+
+---
+
+## Agent fields
+
+<ParamField path="description" type="string">
+  Human-readable description of when to use this agent. Shown in the agent picker and passed to subagent routing logic.
+</ParamField>
+
+<ParamField path="mode" type='"primary" | "subagent" | "all"'>
+  Controls where the agent appears:
+  - `primary` — available as a top-level agent in the TUI
+  - `subagent` — can be invoked by other agents with the `task` tool
+  - `all` — usable in both roles
+</ParamField>
+
+<ParamField path="model" type="string">
+  Model to use for this agent in `provider/model-name` format, e.g. `anthropic/claude-opus-4-5`. Falls back to the top-level `model` setting if not specified.
+</ParamField>
+
+<ParamField path="variant" type="string">
+  Default model variant for this agent (applies only when using the agent's configured model).
+</ParamField>
+
+<ParamField path="prompt" type="string">
+  System prompt override for the agent. Replaces the built-in system prompt entirely for custom agents, or extends it for built-in ones.
+</ParamField>
+
+<ParamField path="temperature" type="number">
+  Sampling temperature (0–2). Higher values produce more varied output; lower values are more deterministic.
+</ParamField>
+
+<ParamField path="top_p" type="number">
+  Nucleus sampling parameter (0–1). Controls the diversity of token selection.
+</ParamField>
+
+<ParamField path="steps" type="number">
+  Maximum number of agentic tool-use iterations before Shob forces a text-only response. Useful for preventing runaway loops in automation.
+</ParamField>
+
+<ParamField path="color" type="string">
+  Accent colour for the agent in the TUI. Accepts a hex code (`#FF5733`) or a theme colour name (`primary`, `secondary`, `accent`, `success`, `warning`, `error`, `info`).
+</ParamField>
+
+<ParamField path="hidden" type="boolean">
+  When `true`, hides the agent from the `@` autocomplete menu. Applies only to `mode: subagent` agents. Default: `false`.
+</ParamField>
+
+<ParamField path="disable" type="boolean">
+  When `true`, completely removes the agent (including built-in ones) from Shob's agent list.
+</ParamField>
+
+<ParamField path="permission" type="object">
+  Per-agent permission rules. These are merged on top of any global `permission` config and the agent's built-in defaults.
+</ParamField>
+
+---
+
+## Permission rules
+
+The `permission` field controls what tools the agent is allowed to call. Each tool key maps to an **action** (`"allow"`, `"ask"`, or `"deny"`), optionally scoped to specific file patterns.
+
+### Available tools
+
+| Tool | Description |
+|---|---|
+| `bash` | Run arbitrary shell commands |
+| `read` | Read file contents |
+| `edit` | Write or edit files |
+| `list` | List directory contents |
+| `glob` | Find files by glob pattern |
+| `grep` | Search file contents |
+| `webfetch` | Fetch a URL |
+| `task` | Spawn a subagent |
+| `todowrite` | Manage a todo list |
+
+### Simple permission (applies to all paths)
+
+```json
+{
+  "permission": {
+    "bash": "ask",
+    "edit": "deny",
+    "webfetch": "allow"
+  }
+}
+```
+
+### Pattern-scoped permission
+
+```json
+{
+  "permission": {
+    "edit": {
+      "*": "ask",
+      "src/**": "allow",
+      "*.lock": "deny"
+    },
+    "read": {
+      "*": "allow",
+      "*.env": "ask"
+    }
+  }
+}
+```
+
+### Shorthand: allow or deny everything
+
+```json
+{
+  "permission": "allow"
+}
+```
+
+---
+
+## Complete example
+
+```json
+{
+  "$schema": "https://shob.ai/config.json",
+  "agent": {
+
+    // Override the default build agent to ask before running bash
+    "build": {
+      "permission": {
+        "bash": "ask"
+      }
+    },
+
+    // A read-only code reviewer
+    "reviewer": {
+      "description": "Reviews code for correctness, style, and security issues. Does not modify files.",
+      "mode": "subagent",
+      "model": "anthropic/claude-opus-4-5",
+      "temperature": 0.2,
+      "color": "#3B82F6",
+      "permission": {
+        "bash": "deny",
+        "edit": "deny",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow",
+        "webfetch": "deny",
+        "task": "deny",
+        "todowrite": "deny"
+      }
+    },
+
+    // A focused writing agent
+    "writer": {
+      "description": "Writes and edits documentation and markdown files only.",
+      "mode": "all",
+      "model": "anthropic/claude-opus-4-5",
+      "temperature": 0.7,
+      "steps": 20,
+      "color": "success",
+      "permission": {
+        "edit": {
+          "*": "deny",
+          "**/*.md": "allow",
+          "docs/**": "allow"
+        },
+        "bash": "deny",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow",
+        "webfetch": "ask"
+      }
+    },
+
+    // Disable the built-in plan agent
+    "plan": {
+      "disable": true
+    }
+  }
+}
+```
+
+---
+
+## Agent markdown files
+
+In addition to the `agent` block in `shob.json`, you can define agents as markdown files with YAML frontmatter. Place them in:
+
+- `.shob/agent/<name>.md` — project-scoped
+- `~/.config/shob/agent/<name>.md` — global
+
+The frontmatter carries the same fields as the JSON config (e.g. `description`, `mode`, `tools`), and the markdown body becomes the agent's system prompt.
+
+```markdown
+---
+description: "Specialized agent for writing and reviewing tests."
+mode: subagent
+tools:
+  bash: false
+  webfetch: false
+---
+
+You are a test-writing specialist. When given a source file or a description
+of a feature, you write thorough unit and integration tests using the project's
+existing test framework and conventions.
+```
+
+---
+
+## Create an agent with the CLI
+
+The `shob agent create` interactive wizard generates an agent for you using the current AI model, then lets you customise tools and mode before saving the file.
+
+```bash
+shob agent create
+```
+
+<Steps>
+  <Step title="Choose a location">
+    Select whether to save the agent to the current project (`.shob/agent/`) or globally (`~/.config/shob/agent/`).
+  </Step>
+  <Step title="Describe the agent">
+    Enter a plain-English description of what the agent should do. Shob uses your current model to generate a name, a "when to use" description, and a system prompt automatically.
+  </Step>
+  <Step title="Select tools">
+    Toggle which tools should be available. All tools are enabled by default; deselect any you want to disable.
+  </Step>
+  <Step title="Choose agent mode">
+    Pick `all`, `primary`, or `subagent` depending on how you want the agent to be used.
+  </Step>
+</Steps>
+
+You can also run the wizard non-interactively with flags:
+
+```bash
+shob agent create \
+  --description "Writes unit tests for TypeScript files" \
+  --mode subagent \
+  --tools "read,glob,grep,list,edit" \
+  --model anthropic/claude-opus-4-5
+```
+
+### List all agents
+
+```bash
+shob agent list
+```
+
+Prints every available agent (built-in and custom) along with its mode and effective permission rules.
+
+---
+
+<Note>
+  See the [CLI reference for `shob agent`](/cli/agent) for the full list of flags and non-interactive usage.
+</Note>

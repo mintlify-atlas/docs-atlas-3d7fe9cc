@@ -1,0 +1,174 @@
+---
+title: "Shob Skills: Reusable Agent Workflows"
+sidebarTitle: "Skills"
+description: "Skills are reusable agent workflow definitions that give Shob agents specialized capabilities — brainstorming, research, UI design, memory, and more."
+---
+
+Skills are the building block for extending what Shob agents can do. A skill is a Markdown file — specifically a `SKILL.md` — that contains a workflow definition for the agent to follow. When a skill is available, the agent reads its name and description at startup and can invoke it automatically when the task matches, or when you ask for it by name.
+
+Skills let you capture complex, multi-step workflows once and reuse them across projects and sessions. The built-in skills cover common developer workflows out of the box, and you can create your own for anything your team does repeatedly.
+
+## How Skills Work
+
+When a Shob session starts, the skill system scans several locations for `SKILL.md` files:
+
+1. **Global skill directories** — `~/.shob/skills/`, `~/.claude/skills/`, and `~/.agents/skills/`
+2. **Project-level skill directories** — `skills/` or `skill/` folders found by walking up from the working directory
+3. **Config-specified paths** — additional directories listed in your Shob config under `skills.paths`
+4. **Remote skill URLs** — directories fetched from URLs listed under `skills.urls` in your config, downloaded and cached locally
+
+Each `SKILL.md` must have a YAML frontmatter block with at minimum a `name` and `description` field. The agent uses the description to decide when to invoke the skill. The body of the file contains the workflow instructions in plain Markdown.
+
+```markdown
+---
+name: my-skill
+description: "Brief description of when the agent should use this skill."
+---
+
+# Skill Title
+
+Instructions for the agent...
+```
+
+The skill system deduplicates by name — if the same skill name appears in multiple locations, the first one found wins (with a warning logged for duplicates).
+
+## Built-in Skills
+
+Shob ships with a curated set of built-in skills covering the most common AI-assisted development workflows. These are bundled with both the CLI and the desktop app and can be installed into your global skill directory from the Skills Store in the desktop app's settings.
+
+<CardGroup cols={2}>
+  <Card title="brainstorming" icon="lightbulb">
+    **Collaborative ideation before coding.** Guides the agent through exploring project context, asking clarifying questions one at a time, proposing 2–3 approaches with trade-offs, presenting a design for approval, writing a spec document, and then transitioning to an implementation plan. Must be invoked before any creative implementation work.
+  </Card>
+  <Card title="deep-research-agent" icon="magnifying-glass">
+    **Autonomous multi-phase research.** Decomposes a research query into sub-questions, runs parallel web searches, extracts and cross-references claims across 100+ sources, resolves conflicts, and synthesizes a structured report with inline citations. Use for competitive analysis, technology surveys, or any topic requiring verifiable depth.
+  </Card>
+  <Card title="frontend-design" icon="palette">
+    **Production-grade UI generation.** Guides creation of distinctive frontend interfaces that avoid generic aesthetics. Chooses a clear conceptual direction (brutalist, minimalist, retro-futuristic, etc.) and generates working code with cohesive typography, color, motion, and spatial composition across React, Vue, HTML/CSS, and other stacks.
+  </Card>
+  <Card title="memory" icon="database">
+    **Persistent cross-session project memory.** Maintains a `.shob/memory/` folder of structured Markdown files so the full project context is never lost across sessions or context compaction. Uses progressive disclosure — loads only the files relevant to the current task. Active on every response while enabled.
+  </Card>
+  <Card title="improve" icon="chart-line">
+    **Senior advisor for codebase audits.** Surveys any codebase as a read-only senior advisor, finds improvement opportunities across correctness, security, performance, test coverage, tech debt, and direction, and writes fully self-contained implementation plans for other agents to execute. Never modifies source code itself.
+  </Card>
+  <Card title="loop-me" icon="repeat">
+    **Workflow specification through grilling.** Runs a stateful session focused on designing reusable workflow specs. Uses the "loop lens" — recurring patterns in work life that can be delegated — and grills you with one question at a time (with recommended answers) until each workflow spec is complete enough for an implementer agent to build without further questions.
+  </Card>
+  <Card title="ponytail" icon="scissors">
+    **Enforced minimalism and YAGNI.** Channels a lazy senior developer who reaches for the standard library before custom code, native platform features before dependencies, and one line before fifty. Supports `lite`, `full` (default), and `ultra` intensity levels. Active on every response while enabled; deactivates with `stop ponytail`.
+  </Card>
+  <Card title="research-knowledge" icon="book">
+    **Deep research with structured synthesis.** GOD MODE research skill. Runs a multi-phase autonomous loop: query decomposition → multi-source crawling → claim cross-referencing → conflict resolution → structured synthesis with inline citations. Supports `[academic]`, `[brief]`, and `[compare]` output modes.
+  </Card>
+  <Card title="ui-ux-pro-max" icon="wand-magic-sparkles">
+    **Full-spectrum UI/UX design intelligence.** Covers 50+ design styles, color palettes by industry, typography pairings, and UX guidelines across 9 tech stacks (React, Next.js, Vue, Svelte, SwiftUI, React Native, Flutter, Tailwind, shadcn/ui). Analyzes product type, industry, and style keywords to generate a complete design system before writing any code.
+  </Card>
+  <Card title="web-scraper" icon="spider">
+    **Web scraping and structured data extraction.** Extracts content from websites using auto mode (HTTP with browser fallback), curl-only mode for static pages, or browser-only mode for JavaScript-heavy sites. Supports batch URL processing and structured data mining.
+  </Card>
+  <Card title="caveman" icon="comment">
+    **Ultra-compressed communication.** Reduces token usage ~75% by speaking like a smart caveman while preserving full technical accuracy. Supports `lite`, `full`, `ultra`, and wenyan (Classical Chinese) intensity levels. Use when you want brief, efficient responses.
+  </Card>
+</CardGroup>
+
+## Creating a Custom Skill
+
+Any Markdown file named `SKILL.md` inside a recognized skill directory becomes a skill. The minimum viable skill looks like this:
+
+```markdown
+---
+name: my-workflow
+description: "When to use this skill and what it does."
+---
+
+# My Workflow
+
+Step-by-step instructions for the agent...
+```
+
+### Frontmatter Fields
+
+| Field | Required | Description |
+|---|---|---|
+| `name` | ✅ | The skill's unique name. Used to identify and invoke the skill. |
+| `description` | ✅ | A one- or two-sentence description of when the agent should use this skill. |
+| `argument-hint` | ❌ | Hint text shown to the user when invoking the skill with arguments. |
+| `disable-model-invocation` | ❌ | Set to `true` to prevent the skill from triggering model calls directly. |
+| `license` | ❌ | License information for shared or published skills. |
+| `metadata` | ❌ | Arbitrary metadata (e.g., `author`, `version`). |
+
+### Writing Effective Skill Instructions
+
+The body of the `SKILL.md` is read verbatim by the agent. Write it as you would write instructions for a capable developer:
+
+- Use numbered lists for ordered steps the agent must follow
+- Use checklists (`- [ ]`) for items the agent must verify before proceeding
+- Include examples of input and expected output
+- Define key terms and vocabulary the agent should use
+- Specify constraints and anti-patterns to avoid
+
+<Tip>
+The `description` field is what the agent reads to decide whether to invoke the skill automatically. Write it as a clear trigger condition: "Use when the user asks to X, Y, or Z."
+</Tip>
+
+## Where to Place Skills
+
+Skills are discovered from multiple locations in priority order:
+
+<Steps>
+  <Step title="Global config directory (highest priority for personal skills)">
+    Place skills in `~/.shob/skills/<skill-name>/SKILL.md` to make them available in every project. This is the recommended location for personal workflow skills.
+
+    ```
+    ~/.shob/skills/
+    └── my-workflow/
+        └── SKILL.md
+    ```
+  </Step>
+  <Step title="Project skills directory">
+    Place skills in a `skills/` folder at the root of your project to share them with your team via version control.
+
+    ```
+    my-project/
+    └── skills/
+        └── my-workflow/
+            └── SKILL.md
+    ```
+  </Step>
+  <Step title="Config-specified paths">
+    Add custom directories to your Shob config file under `skills.paths`:
+
+    ```json
+    {
+      "skills": {
+        "paths": ["~/team-skills", "./project-specific-skills"]
+      }
+    }
+    ```
+  </Step>
+  <Step title="Remote skill URLs">
+    Fetch skills from a remote index by specifying URLs in your config. Shob downloads the skills and caches them locally:
+
+    ```json
+    {
+      "skills": {
+        "urls": ["https://example.com/shob-skills/"]
+      }
+    }
+    ```
+
+    The remote server must serve an `index.json` file listing available skills, each with a `SKILL.md` file.
+  </Step>
+</Steps>
+
+## Installing Built-in Skills from the Desktop App
+
+The desktop app includes a **Skills Store** in Settings that lists all bundled skills with their descriptions. From there you can:
+
+- Browse the available built-in skills
+- Install a skill to `~/.shob/skills/<skill-name>/SKILL.md` with one click
+- Uninstall managed skills
+- See the install location of each skill
+
+Skills installed through the store are marked as managed — they can be updated or removed by the store without affecting skills you've placed manually.
