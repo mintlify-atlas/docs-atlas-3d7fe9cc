@@ -1,5 +1,5 @@
 ---
-title: "Shob Plugin System: Extend Agent Capabilities"
+title: "Shob Plugin System: Extend AI Agent Capabilities in Shob"
 sidebarTitle: "Overview"
 description: "The @shob-ai/plugin package lets you build plugins that add tools, authentication methods, provider models, and event hooks to Shob."
 ---
@@ -70,11 +70,11 @@ The `input` argument your plugin function receives:
 
 ## Registering a plugin in `shob.json`
 
-Plugins are listed in your project's `shob.json` under the `"plugins"` key. Each entry is either a package name or a two-element tuple `[packageName, optionsObject]`:
+Plugins are listed in your project's `shob.json` under the `"plugin"` key. Each entry is either a package name or a two-element tuple `[packageName, optionsObject]`:
 
 ```json
 {
-  "plugins": [
+  "plugin": [
     "my-shob-plugin",
     ["another-plugin", { "apiKey": "env:MY_API_KEY" }]
   ]
@@ -105,7 +105,7 @@ After publishing (or `npm link`-ing) the package, register it:
 
 ```json
 {
-  "plugins": ["my-shob-plugin"]
+  "plugin": ["my-shob-plugin"]
 }
 ```
 

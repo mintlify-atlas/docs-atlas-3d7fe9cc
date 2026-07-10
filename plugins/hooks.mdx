@@ -1,7 +1,7 @@
 ---
-title: "Shob Plugin Hooks Reference"
+title: "Shob Plugin Hooks: Complete Reference for All Hook Types"
 sidebarTitle: "Hooks"
-description: "Complete reference for all Shob plugin hooks. Covers event, config, auth, provider, chat.message, chat.params, permission.ask, shell.env, and experimental hooks."
+description: "Complete reference for all Shob plugin hooks. Covers event, config, auth, provider, chat.message, chat.params, permission.ask, and shell.env hooks."
 ---
 
 The `Hooks` interface is the object your plugin's `server` function returns. Each key is optional — include only the hooks you need. Shob merges hooks from all loaded plugins at startup, so multiple plugins can register the same hook type without conflict.

@@ -1,7 +1,7 @@
 ---
-title: "createOpencodeServer: Spawn a Shob Server Process"
+title: "createOpencodeServer: Spawn and Manage a Shob Server"
 sidebarTitle: "Server"
-description: "createOpencodeServer spawns and manages a Shob server child process from Node.js. Returns the server URL and a close() function."
+description: "createOpencodeServer spawns and manages a Shob server child process from Node.js or Bun. Returns the server URL and a close() function."
 ---
 
 `createOpencodeServer` launches `shob serve` as a managed child process from within your Node.js or Bun application, waits until the server is ready to accept connections, and returns the server URL alongside a `close()` function to tear it down. This lets you embed a Shob server in automated pipelines, test harnesses, or any programmatic workflow without running the CLI yourself.

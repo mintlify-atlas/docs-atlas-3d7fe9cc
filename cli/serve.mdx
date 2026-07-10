@@ -1,7 +1,7 @@
 ---
-title: "shob serve — Start a Headless Shob HTTP Server"
+title: "shob serve — Start a Persistent Headless HTTP Server"
 sidebarTitle: "serve"
-description: "shob serve starts Shob as a background HTTP server. Key flags: --hostname, --port, --password."
+description: "shob serve starts Shob as a persistent, headless HTTP server. Use --port, --hostname, --mdns, --mdns-domain, and --cors to configure it."
 ---
 
 `shob serve` starts Shob as a persistent, headless HTTP server. Once running, other processes — including `shob run --attach` from a different terminal, a remote machine, or a CI pipeline — can connect to it and dispatch agent tasks without spinning up a new process each time. The server stays alive until you stop it.

@@ -1,7 +1,7 @@
 ---
-title: "shob github — GitHub Agent Integration"
+title: "shob github — GitHub Agent and PR Checkout Commands"
 sidebarTitle: "github"
-description: "shob github manages the GitHub agent integration. Subcommands: install, run. Automates PR and issue handling via GitHub Actions."
+description: "shob github manages the Shob GitHub agent integration. Subcommands: install and run. Automates PR review and issue handling via GitHub Actions."
 ---
 
 `shob github` manages Shob's GitHub agent integration. Once installed, the integration wires Shob into your GitHub Actions workflows so that it can automatically respond to pull request events, issue comments, and other GitHub activity — reviewing code, suggesting fixes, and pushing commits on your behalf.
@@ -72,8 +72,8 @@ shob pr <number>
 
 1. Runs `gh pr checkout <number> --branch pr/<number> --force` to create a local branch.
 2. For fork PRs, adds the fork's repository as a git remote and configures the upstream tracking branch so pushes go to the fork.
-3. Scans the PR description for a Shob session link (`https://opncd.ai/s/<id>`). If found, imports that session with `shob import` and resumes it via `shob run -s <sessionID>`.
-4. Launches the Shob TUI (`shob`) in the current working directory.
+3. Scans the PR description for a Shob session link (`https://opncd.ai/s/<id>`). If found, imports that session with `shob import` and passes `-s <sessionID>` when launching the TUI.
+4. Launches the Shob TUI (`shob -s <sessionID>` when a session was found, or plain `shob`) in the current working directory.
 
 ### Example
 

@@ -1,5 +1,5 @@
 ---
-title: "Understanding Shob Sessions"
+title: "Understanding Shob Sessions: Conversations and History"
 sidebarTitle: "Sessions"
 description: "Sessions are the core unit of work in Shob. Each session tracks the full conversation, file changes, and agent actions for a single task."
 ---
@@ -10,7 +10,7 @@ A **session** in Shob is a persistent, stateful conversation between you and an 
 
 When you start Shob — either interactively through the TUI or headlessly via `shob run` — a new session is created automatically. The session stores:
 
-- A unique **session ID** (e.g., `ses_01jzabcxyz...`) and a human-readable **slug**
+- A unique **session ID** (e.g., `ses_01jzabcxyz...`)
 - A **title** that is auto-generated from the first message and refined by the `title` agent
 - The **working directory** the session is anchored to
 - The complete **message history**, including all agent tool calls and their results

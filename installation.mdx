@@ -1,7 +1,7 @@
 ---
-title: "Install Shob CLI on macOS, Linux, and Windows"
+title: "How to Install the Shob CLI on macOS, Linux, Windows"
 sidebarTitle: "Installation"
-description: "Install the Shob CLI using npm, bun, or pnpm. Covers macOS, Linux, and Windows with system requirements and upgrade instructions."
+description: "Install the Shob CLI using npm, bun, pnpm, or yarn on macOS, Linux, or Windows. Includes system requirements and upgrade instructions."
 ---
 
 The Shob CLI is distributed as the `shob-code` npm package. Installing it globally adds the `shob` binary to your PATH, giving you access to all commands — from running AI coding sessions to managing providers, plugins, and MCP servers — directly from your terminal on macOS, Linux, or Windows.
@@ -81,7 +81,7 @@ shob upgrade 0.0.2
 ```
 
 <Tip>
-  If `shob upgrade` cannot detect your package manager it will prompt you to select one manually. You can also pass `--method npm`, `--method pnpm`, `--method bun`, or `--method brew` to skip the prompt.
+  If `shob upgrade` cannot detect your package manager it will prompt you to select one manually. You can also pass `--method` with one of the supported values — `npm`, `pnpm`, `bun`, `brew`, `curl`, `choco`, or `scoop` — to skip the prompt.
 </Tip>
 
 ## Desktop App

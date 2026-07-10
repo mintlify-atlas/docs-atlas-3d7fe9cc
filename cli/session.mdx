@@ -1,7 +1,7 @@
 ---
-title: "shob session — Manage Shob Sessions"
+title: "shob session — List and Delete Shob Agent Sessions"
 sidebarTitle: "session"
-description: "shob session lists and deletes Shob sessions. Subcommands: list, delete."
+description: "shob session lists and deletes saved Shob sessions. The list subcommand supports --format (table or json) and --max-count to limit output."
 ---
 
 `shob session` lets you inspect and clean up the sessions that Shob creates whenever you run an agent task. Each session stores the full conversation history, the working directory, and metadata such as the title and timestamps. Use `shob session list` to review past sessions and `shob session delete` to remove ones you no longer need.

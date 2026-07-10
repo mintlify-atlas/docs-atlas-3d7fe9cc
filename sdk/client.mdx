@@ -1,7 +1,7 @@
 ---
-title: "OpencodeClient: Shob SDK REST API Client"
+title: "OpencodeClient: Typed REST API Client for Shob SDK"
 sidebarTitle: "Client"
-description: "createOpencodeClient creates a typed REST API client for a running Shob server. Covers sessions, providers, tools, MCP, file operations, and real-time events."
+description: "createOpencodeClient returns a typed REST API client for a running Shob server. Covers sessions, providers, tools, MCP, file operations, and events."
 ---
 
 `createOpencodeClient` returns an `OpencodeClient` instance — a fully typed HTTP client that wraps every endpoint of the Shob REST API. Import it from `@shob-ai/sdk` (or `@shob-ai/sdk/client` if you only need the client without server spawning) and point it at a running Shob server to start making calls.
@@ -209,6 +209,18 @@ The session namespace contains all methods for creating and interacting with AI 
 | `tui.publish(options?)` | Publish a TUI event |
 | `tui.control.next(options?)` | Dequeue the next pending TUI control request |
 | `tui.control.response(options?)` | Submit a response to the TUI control queue |
+
+### `client.path` — Server path
+
+| Method | Description |
+|---|---|
+| `path.get(options?)` | Get the current working path of the server instance |
+
+### `client.command` — Commands
+
+| Method | Description |
+|---|---|
+| `command.list(options?)` | List all registered slash commands |
 
 ### `client.instance` — Instance lifecycle
 

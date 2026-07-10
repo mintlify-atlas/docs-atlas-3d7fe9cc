@@ -1,5 +1,5 @@
 ---
-title: "Agents in Shob: Types, Modes, and Configuration"
+title: "Shob Agents: Types, Modes, and Configuration Guide"
 sidebarTitle: "Agents"
 description: "Agents are AI personas in Shob with defined tools, prompts, and permission rules. Learn about primary agents, subagents, and how to customize them."
 ---
@@ -20,7 +20,7 @@ Every agent is defined by the following properties:
 | `permission` | ruleset | Per-agent permission overrides (merged on top of global defaults) |
 | `steps` | number | Maximum agentic iterations before forcing a text-only response |
 | `temperature` | number | Sampling temperature for the model |
-| `topP` | number | Top-P nucleus sampling parameter |
+| `top_p` | number | Top-P nucleus sampling parameter |
 | `variant` | string | Provider-specific reasoning effort (e.g., `high`, `max`, `minimal`) |
 | `color` | string | Hex color or theme color for the agent chip in the TUI |
 | `hidden` | boolean | Hide this subagent from the `@` autocomplete menu |

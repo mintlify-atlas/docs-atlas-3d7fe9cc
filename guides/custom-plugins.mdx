@@ -1,5 +1,5 @@
 ---
-title: "Build Custom Shob Plugins"
+title: "Build Custom Plugins to Extend Shob Tools and Hooks"
 sidebarTitle: "Custom Plugins"
 description: "Extend Shob with custom plugins that add tools, authentication methods, provider integrations, and event hooks using the @shob-ai/plugin package."
 ---
@@ -25,7 +25,6 @@ A plugin can implement any combination of the following capabilities via the `Ho
 | `tool.execute.after` | Post-process a tool's output before it is returned to the model |
 | `tool.definition` | Rewrite a tool's description or parameter schema as seen by the model |
 | `command.execute.before` | Intercept slash-commands before they run |
-| `experimental_workspace.register` | Register a new workspace type (e.g. remote sandboxes) |
 
 ## Plugin structure
 

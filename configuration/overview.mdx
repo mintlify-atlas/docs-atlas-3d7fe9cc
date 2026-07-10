@@ -1,7 +1,7 @@
 ---
-title: "Configuring Shob with shob.json"
+title: "Shob Configuration Overview: shob.json Schema Guide"
 sidebarTitle: "Overview"
-description: "Shob is configured via shob.json or shob.jsonc files at global and project scopes. Learn the config schema, precedence rules, and environment variable overrides."
+description: "Configure Shob via shob.json at global and project scopes. Learn the config schema, merge precedence rules, and environment variable overrides."
 ---
 
 Shob reads its configuration from `shob.json` (or `shob.jsonc` for commented JSON) files at multiple locations. Settings are merged together, so you can keep your personal defaults globally while letting individual projects override what they need. The config schema covers everything from the default AI model and provider keys to MCP servers, custom agents, and fine-grained permission rules.
@@ -71,9 +71,9 @@ The table below lists every first-class field in the `shob.json` schema. Follow 
 | `compaction` | `object` | Context compaction settings (auto, prune, profiles) |
 | `memory` | `object` | Long-term memory settings (enabled, max_items, max_context_chars) |
 | `server` | `object` | Options for `shob serve` / `shob web` (port, hostname, mDNS, CORS) |
-| `keybindings` | `object` | TUI keybinding overrides |
 | `formatter` | `object \| false` | Code formatter command configurations by language |
 | `lsp` | `object \| false` | Language Server Protocol configurations |
+| `skills` | `object` | Additional skill folder paths and URLs |
 | `disabled_providers` | `string[]` | Providers to exclude from automatic loading |
 | `enabled_providers` | `string[]` | When set, only these providers are enabled |
 | `experimental` | `object` | Experimental feature flags (OpenTelemetry, batch tool, etc.) |

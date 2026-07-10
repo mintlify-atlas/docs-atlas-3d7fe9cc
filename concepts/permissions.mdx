@@ -1,5 +1,5 @@
 ---
-title: "Shob Permission System: Control AI Agent Actions"
+title: "Shob Permission System: Control Every AI Agent Action"
 sidebarTitle: "Permissions"
 description: "Shob's permission system lets you approve or deny every AI agent action — file reads, shell commands, external requests — before it executes."
 ---
@@ -198,6 +198,7 @@ Shob ships with sensible defaults that pre-allow common read-only shell operatio
 | `bash` | `git branch *` | `allow` |
 | `bash` | `grep *` | `allow` |
 | `bash` | `which *` | `allow` |
+| `bash` | `type *` | `allow` |
 | `read` | `*.env.example` | `allow` |
 | `read` | `*.env`, `*.env.*` | `ask` |
 
